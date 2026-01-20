@@ -1,0 +1,61 @@
+# Python
+.venv/
+.venv*/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.whl
+
+# Testing
+.pytest_cache/
+.coverage
+.tox/
+htmlcov/
+
+# Linting & Type Checking
+.mypy_cache/
+.ruff_cache/
+.pytype/
+
+# IDEs
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Models (if large binary files)
+models/*/
+!models/.gitkeep
+
+# Audio files (temporary test files)
+*.wav
+*.mp3
+*.m4a
+*.flac
+
+# macOS metadata files
+._*
+.AppleDouble
+.LSOverride
+
+# Build artifacts
+*.spec
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Environment
+.env
+.env.local
+get-pip.py
+
+# Project-specific
+.copilot-instructions.md.old

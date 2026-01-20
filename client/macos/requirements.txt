@@ -1,0 +1,4 @@
+numpy>=1.26
+sounddevice>=0.4
+soxr>=0.4
+websockets>=12
