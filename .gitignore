@@ -43,3 +43,5 @@ models/*/
 # Speaker profiles and recordings
 samples/
 profiles/
+
+**/**.old
