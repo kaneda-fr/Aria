@@ -22,6 +22,7 @@ from app.audio.ringbuffer import RingBuffer
 from app.audio.vad import VadConfig, VoiceActivityDetector
 from app.http_audio.server import build_tts_router
 from app.llm.ollama_client import SYSTEM_PROMPT, generate_llm_response, llm_enabled, load_llm_config
+from app.speaker_recognition.recognizer import SpeakerRecognizer
 from app.speech_output.echo_guard_v2 import EchoGuardV2
 from app.speech_output.speech_output import maybe_build_speech_output
 
@@ -139,6 +140,7 @@ async def lifespan(app: FastAPI):
     app.state.speech_output = None
     app.state.tts_cache_dir = None
     app.state.echo_guard = EchoGuardV2()
+    app.state.spk_recognizer = SpeakerRecognizer()
     try:
         if llm_enabled():
             import httpx
@@ -329,21 +331,112 @@ async def ws_asr(ws: WebSocket) -> None:
         )
 
         # Spec change: server prints transcripts; nothing is sent back to clients.
+
         should_enqueue = True
+        speaker_user = "unknown"
         if text_out:
-            echo_guard = getattr(app.state, "echo_guard", None)
-            if echo_guard is not None and echo_guard.enabled:
-                suppress, info = echo_guard.should_suppress(text_out, time.time())
-                info = {**info, "session_id": session_id, "utterance": utterance_gen}
-                if suppress:
-                    should_enqueue = False
-                    log.info("ARIA.ECHO_V2: suppressed", extra={"fields": info})
-                else:
-                    log.info("ARIA.ECHO_V2: allowed", extra={"fields": info})
+            spk = getattr(app.state, "spk_recognizer", None)
+            aria_prefixes = ("aria_", "aria")
+            aria_detected = False
+            if spk is not None and getattr(spk, "enabled", False):
+                timeout_s = float(os.environ.get("ARIA_SPK_TIMEOUT_SEC", "1.0") or "1.0")
+                try:
+                    spk_result = await asyncio.wait_for(
+                        asyncio.to_thread(
+                            spk.identify,
+                            wav_bytes,
+                            16000,
+                            1,
+                            now_ts=time.time(),
+                        ),
+                        timeout=timeout_s,
+                    )
+                except asyncio.TimeoutError:
+                    spk_result = None
+                except Exception as e:
+                    spk_result = None
+                    log.info(
+                        "ARIA.SPK.Error",
+                        extra={"fields": {"session_id": session_id, "utterance": utterance_gen, "error": repr(e)}},
+                    )
+
+                if spk_result is not None:
+                    speaker_user = spk_result.user
+                    log.info(
+                        "ARIA.SPK",
+                        extra={
+                            "fields": {
+                                "session_id": session_id,
+                                "utterance": utterance_gen,
+                                "name": spk_result.name,
+                                "score": spk_result.score,
+                                "known": spk_result.known,
+                                "user": spk_result.user,
+                                "second_best": spk_result.second_best,
+                            }
+                        },
+                    )
+                    self_names = {n.lower() for n in getattr(spk, "self_names", ())}
+                    name_lc = spk_result.name.lower()
+                    log.info(
+                        "ARIA.SPK: suppression_check",
+                        extra={
+                            "fields": {
+                                "session_id": session_id,
+                                "utterance": utterance_gen,
+                                "name_lc": name_lc,
+                                "aria_prefixes": aria_prefixes,
+                            }
+                        },
+                    )
+                    # Suppress if speaker name matches aria* (case-insensitive, prefix)
+                    if any(name_lc.startswith(prefix) for prefix in aria_prefixes):
+                        should_enqueue = False
+                        aria_detected = True
+                        log.info(
+                            "ARIA.SPK: suppressed_aria_speaker",
+                            extra={
+                                "fields": {
+                                    "session_id": session_id,
+                                    "utterance": utterance_gen,
+                                    "name": spk_result.name,
+                                    "score": spk_result.score,
+                                }
+                            },
+                        )
+                    # Suppress if self speech (existing logic)
+                    if (
+                        spk_result.known
+                        and name_lc in self_names
+                        and spk_result.score >= getattr(spk, "self_min_score", 0.0)
+                    ):
+                        should_enqueue = False
+                        log.info(
+                            "ARIA.SPK: suppressed_self_speech",
+                            extra={
+                                "fields": {
+                                    "session_id": session_id,
+                                    "utterance": utterance_gen,
+                                    "name": spk_result.name,
+                                    "score": spk_result.score,
+                                }
+                            },
+                        )
+
+            if should_enqueue:
+                echo_guard = getattr(app.state, "echo_guard", None)
+                if echo_guard is not None and echo_guard.enabled:
+                    suppress, info = echo_guard.should_suppress(text_out, time.time())
+                    info = {**info, "session_id": session_id, "utterance": utterance_gen}
+                    if suppress:
+                        should_enqueue = False
+                        log.info("ARIA.ECHO_V2: suppressed", extra={"fields": info})
+                    else:
+                        log.info("ARIA.ECHO_V2: allowed", extra={"fields": info})
 
             if should_enqueue:
                 print(f"ARIA.TRANSCRIPT: {text_out}", flush=True)
-                _enqueue_final_llm(app, text_out, session_id)
+                _enqueue_final_llm(app, text_out, session_id, speaker_user)
 
         if not client_vad_enabled:
             vad.reset()
@@ -545,10 +638,10 @@ def _llm_history_max_messages() -> int:
     return max(0, max_messages)
 
 
-def _enqueue_final_llm(app: FastAPI, transcript: str, session_id: str | None) -> None:
+def _enqueue_final_llm(app: FastAPI, transcript: str, session_id: str | None, speaker_user: str) -> None:
     """Enqueue a final transcript for LLM processing without blocking."""
 
-    q: asyncio.Queue[tuple[str | None, str]] | None = getattr(app.state, "llm_queue", None)
+    q: asyncio.Queue[tuple[str | None, str, str]] | None = getattr(app.state, "llm_queue", None)
     if q is None:
         return
 
@@ -557,13 +650,13 @@ def _enqueue_final_llm(app: FastAPI, transcript: str, session_id: str | None) ->
         return
 
     try:
-        q.put_nowait((session_id, text))
+        q.put_nowait((session_id, text, speaker_user))
     except asyncio.QueueFull:
         # Drop the previous queued item and keep the latest.
         with contextlib.suppress(Exception):
             _ = q.get_nowait()
         with contextlib.suppress(asyncio.QueueFull):
-            q.put_nowait((session_id, text))
+            q.put_nowait((session_id, text, speaker_user))
 
 
 async def _llm_worker(app: FastAPI) -> None:
@@ -572,7 +665,7 @@ async def _llm_worker(app: FastAPI) -> None:
     Runs independently of the WebSocket receive loop so LLM latency cannot block audio ingestion.
     """
 
-    q: asyncio.Queue[tuple[str | None, str]] | None = getattr(app.state, "llm_queue", None)
+    q: asyncio.Queue[tuple[str | None, str, str]] | None = getattr(app.state, "llm_queue", None)
     config = getattr(app.state, "llm_config", None)
     client = getattr(app.state, "llm_client", None)
     if q is None or config is None:
@@ -587,10 +680,13 @@ async def _llm_worker(app: FastAPI) -> None:
 
     while True:
         item = await q.get()
-        if isinstance(item, tuple):
+        if isinstance(item, tuple) and len(item) == 3:
+            session_id, transcript, speaker_user = item
+        elif isinstance(item, tuple) and len(item) == 2:
             session_id, transcript = item
+            speaker_user = "unknown"
         else:
-            session_id, transcript = None, str(item)
+            session_id, transcript, speaker_user = None, str(item), "unknown"
         try:
             # Always emit a low-noise marker so it's obvious when a request is fired.
             # (Full prompt logging is gated behind ARIA_LLM_DEBUG.)
@@ -605,7 +701,8 @@ async def _llm_worker(app: FastAPI) -> None:
             )
             if llm_debug:
                 max_chars = int(os.environ.get("ARIA_LLM_DEBUG_MAX_CHARS", "800"))
-                user_text = transcript if len(transcript) <= max_chars else (transcript[:max_chars] + "…")
+                user_line = f"[speaker={speaker_user}] {transcript}"
+                user_text = user_line if len(user_line) <= max_chars else (user_line[:max_chars] + "…")
                 sys_text = SYSTEM_PROMPT
                 sys_text = sys_text if len(sys_text) <= 300 else (sys_text[:300] + "…")
                 log.info(
@@ -633,7 +730,8 @@ async def _llm_worker(app: FastAPI) -> None:
                 messages = [
                     {"role": "system", "content": SYSTEM_PROMPT},
                 ]
-            messages.append({"role": "user", "content": transcript})
+            user_content = f"[speaker={speaker_user}] {transcript}"
+            messages.append({"role": "user", "content": user_content})
 
             t0 = time.monotonic()
             response = await generate_llm_response(
@@ -665,7 +763,7 @@ async def _llm_worker(app: FastAPI) -> None:
                             if history is None or getattr(history, "maxlen", None) != history_max:
                                 history = deque(list(history or []), maxlen=history_max)
                                 history_map[session_id] = history
-                            history.append({"role": "user", "content": transcript})
+                            history.append({"role": "user", "content": user_content})
                             history.append({"role": "assistant", "content": response})
 
                 # Optional TTS: speak the LLM response to Sonos.

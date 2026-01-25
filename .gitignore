@@ -38,28 +38,8 @@ models/*/
 
 # Audio files (temporary test files)
 *.wav
-*.mp3
-*.m4a
-*.flac
+*.WAV
 
-# macOS metadata files
-._*
-.AppleDouble
-.LSOverride
-
-# Build artifacts
-*.spec
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Environment
-.env
-.env.local
-get-pip.py
-
-# Project-specific
-.copilot-instructions.md.old
-docs/archive/
-
-#ignore local shell file
-*.sh
+# Speaker profiles and recordings
+samples/
+profiles/

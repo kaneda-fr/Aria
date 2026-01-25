@@ -13,6 +13,12 @@ dependencies = [
   "webrtcvad>=2.0.10",
   "soco>=0.30.0",
   "setuptools>=68,<81",
+  "huggingface_hub<0.24.0",
+  "speechbrain>=1.0.0",
+  "torch @ https://download.pytorch.org/whl/cpu/torch-2.3.1%2Bcpu-cp311-cp311-linux_x86_64.whl ; platform_system=='Linux' and platform_machine=='x86_64' and python_version=='3.11'",
+  "torchaudio @ https://download.pytorch.org/whl/cpu/torchaudio-2.3.1%2Bcpu-cp311-cp311-linux_x86_64.whl ; platform_system=='Linux' and platform_machine=='x86_64' and python_version=='3.11'",
+  "torch; platform_system!='Linux' or platform_machine!='x86_64'",
+  "torchaudio; platform_system!='Linux' or platform_machine!='x86_64'",
 ]
 
 [project.scripts]
