@@ -68,8 +68,8 @@ then ask Sonos to play it:
 ```python
 from soco import SoCo
 
-SONOS_IP = "192.168.100.222"
-SERVER_IP = "192.168.100.100"
+SONOS_IP = "10.1.1.222"
+SERVER_IP = "10.1.1.100"
 
 url = f"http://{SERVER_IP}:9000/tts.wav?text=hello%20sonos&volume=0.30"
 SoCo(SONOS_IP).play_uri(url)
