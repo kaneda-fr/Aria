@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import audioop
 import json
 import os
 import time
+import shutil
 from typing import Any
 from uuid import uuid4
 
@@ -17,7 +19,99 @@ from app.aria_logging import get_logger
 from app.audio.chunking import tail_window
 from app.audio.ringbuffer import RingBuffer
 from app.audio.vad import VadConfig, VoiceActivityDetector
-from app.llm.ollama_client import generate_ollama_response, llm_enabled, load_ollama_config
+from app.http_audio.server import build_tts_router
+from app.llm.ollama_client import SYSTEM_PROMPT, generate_llm_response, llm_enabled, load_llm_config
+from app.speech_output.speech_output import maybe_build_speech_output
+
+
+def _pcm16_stats(pcm16le: bytes, *, sample_rate: int = 16000) -> tuple[float, float]:
+    if not pcm16le:
+        return 0.0, 0.0
+    seconds = len(pcm16le) / (2.0 * float(sample_rate))
+    rms = float(audioop.rms(pcm16le, 2)) / 32768.0
+    return seconds, rms
+
+
+def _webrtc_speech_ratio(
+    pcm16le: bytes,
+    *,
+    sample_rate: int = 16000,
+    frame_ms: int = 20,
+    aggressiveness: int = 2,
+) -> float:
+    try:
+        import webrtcvad
+
+        vad = webrtcvad.Vad(int(aggressiveness))
+    except Exception:
+        return 1.0
+
+    frame_bytes = int(sample_rate * 2 * frame_ms / 1000)
+    if frame_bytes <= 0 or len(pcm16le) < frame_bytes:
+        return 0.0
+
+    total = 0
+    speech = 0
+    end = len(pcm16le) - (len(pcm16le) % frame_bytes)
+    for off in range(0, end, frame_bytes):
+        frame = pcm16le[off : off + frame_bytes]
+        total += 1
+        try:
+            if vad.is_speech(frame, sample_rate):
+                speech += 1
+        except Exception:
+            continue
+    return (speech / total) if total else 0.0
+
+
+def _should_run_asr(pcm16le: bytes) -> tuple[bool, dict[str, float]]:
+    min_seconds = float(os.environ.get("ARIA_ASR_MIN_SECONDS", "0.30"))
+    min_rms = float(os.environ.get("ARIA_ASR_MIN_RMS", "0.004"))
+    min_speech_ratio = float(os.environ.get("ARIA_ASR_MIN_SPEECH_RATIO", "0.18"))
+    aggr = int(os.environ.get("ARIA_VAD_AGGR", "2"))
+
+    seconds, rms = _pcm16_stats(pcm16le)
+    speech_ratio = _webrtc_speech_ratio(pcm16le, aggressiveness=aggr)
+    metrics = {"seconds": seconds, "rms": rms, "speech_ratio": speech_ratio}
+
+    if seconds < max(0.0, min_seconds):
+        return False, metrics
+    if rms < max(0.0, min_rms):
+        return False, metrics
+    if min_speech_ratio > 0.0 and speech_ratio < min_speech_ratio:
+        return False, metrics
+    return True, metrics
+
+
+def _filter_transcript(text: str, *, seconds: float, speech_ratio: float) -> str:
+    if not text:
+        return ""
+
+    if os.environ.get("ARIA_ASR_DROP_FILLERS", "1").strip().lower() in {"0", "false", "no", "off"}:
+        return text
+
+    fillers = {
+        "yeah",
+        "yea",
+        "yep",
+        "ok",
+        "okay",
+        "oh",
+        "uh",
+        "um",
+        "hmm",
+        "mm",
+        "mhm",
+    }
+
+    norm = " ".join(text.strip().lower().split())
+    if norm.rstrip(".!?") in fillers:
+        # Only drop if it looks like low-speech / noise-triggered.
+        if seconds < float(os.environ.get("ARIA_ASR_FILLER_MAX_SECONDS", "0.9")) and speech_ratio < float(
+            os.environ.get("ARIA_ASR_FILLER_MIN_SPEECH_RATIO", "0.35")
+        ):
+            return ""
+    return text
 
 
 log = get_logger("ARIA")
@@ -38,22 +132,25 @@ async def lifespan(app: FastAPI):
     app.state.llm_config = None
     app.state.llm_queue = None
     app.state.llm_worker_task = None
+    app.state.speech_output = None
+    app.state.tts_cache_dir = None
     try:
         if llm_enabled():
             import httpx
 
-            app.state.llm_config = load_ollama_config()
+            app.state.llm_config = load_llm_config()
             app.state.llm_client = httpx.AsyncClient(timeout=app.state.llm_config.timeout_s)
             # Bounded queue prevents unbounded task accumulation; enqueue is non-blocking.
             app.state.llm_queue = asyncio.Queue(maxsize=1)
             app.state.llm_worker_task = asyncio.create_task(_llm_worker(app))
+            cfg = app.state.llm_config
             log.info(
                 "ARIA.LLM.Enabled",
                 extra={
                     "fields": {
-                        "provider": "ollama",
-                        "url": app.state.llm_config.url,
-                        "model": app.state.llm_config.model,
+                        "provider": getattr(cfg, "provider", None),
+                        "url": getattr(cfg, "url", None) or getattr(cfg, "base_url", None),
+                        "model": getattr(cfg, "model", None),
                     }
                 },
             )
@@ -62,6 +159,42 @@ async def lifespan(app: FastAPI):
         app.state.llm_client = None
         app.state.llm_config = None
         log.info("ARIA.LLM.NotEnabled", extra={"fields": {"error": repr(e)}})
+
+    # TTS / Sonos speech output (optional)
+    try:
+        # Validate required local binaries before enabling TTS.
+        piper_bin = os.environ.get("ARIA_PIPER_BIN", "piper").strip() or "piper"
+        ffmpeg_bin = os.environ.get("ARIA_FFMPEG_BIN", "ffmpeg").strip() or "ffmpeg"
+        missing: list[str] = []
+        if shutil.which(piper_bin) is None:
+            missing.append(piper_bin)
+        if shutil.which(ffmpeg_bin) is None:
+            missing.append(ffmpeg_bin)
+
+        if missing:
+            log.info(
+                "ARIA.TTS.NotEnabled",
+                extra={"fields": {"error": f"missing binaries: {', '.join(missing)}"}},
+            )
+            speech = None
+        else:
+            speech = maybe_build_speech_output()
+        if speech is not None:
+            app.state.speech_output = speech
+            app.state.tts_cache_dir = speech.tts_cache_dir()
+            log.info(
+                "ARIA.TTS.Enabled",
+                extra={
+                    "fields": {
+                        "engine": getattr(speech.cfg, "engine", None),
+                        "cache_dir": str(speech.tts_cache_dir()),
+                    }
+                },
+            )
+    except Exception as e:
+        app.state.speech_output = None
+        app.state.tts_cache_dir = None
+        log.info("ARIA.TTS.NotEnabled", extra={"fields": {"error": repr(e)}})
 
     yield
 
@@ -78,6 +211,16 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="ARIA", lifespan=lifespan)
+
+# Expose cached/normalized audio clips for Sonos to fetch.
+# This is safe to mount even when TTS is disabled; requests will 404.
+try:
+    import pathlib
+
+    cache_dir = pathlib.Path(os.environ.get("ARIA_TTS_CACHE_DIR", "/tmp/aria_tts_cache"))
+    app.include_router(build_tts_router(tts_cache_dir=cache_dir))
+except Exception:
+    pass
 
 
 @app.get("/healthz")
@@ -97,13 +240,20 @@ async def ws_asr(ws: WebSocket) -> None:
     log.info("ARIA.Session.Connected", extra={"fields": {"session_id": session_id}})
 
     started = False
+    client_vad_enabled = False
     buffering = False
+    client_vad_started = False
+    dropped_prestart_bytes = 0
     audio = RingBuffer(max_seconds=10.0, sample_rate=16000, channels=1)
     vad = VoiceActivityDetector(
         VadConfig(
             sample_rate=16000,
             frame_ms=20,
             aggressiveness=int(os.environ.get("ARIA_VAD_AGGR", "2")),
+            start_frames=int(os.environ.get("ARIA_VAD_START_FRAMES", "3")),
+            min_rms=float(os.environ.get("ARIA_VAD_MIN_RMS", "0.0")),
+            snr_db=float(os.environ.get("ARIA_VAD_SNR_DB", "0.0")),
+            noise_alpha=float(os.environ.get("ARIA_VAD_NOISE_ALPHA", "0.05")),
             silence_ms=int(os.environ.get("ARIA_VAD_SILENCE_MS", "700")),
         )
     )
@@ -119,10 +269,90 @@ async def ws_asr(ws: WebSocket) -> None:
     utterance_gen = 0
     partial_task: asyncio.Task[None] | None = None
 
+    async def _start_utterance() -> None:
+        nonlocal buffering, utterance_gen, last_partial_at
+        utterance_gen += 1
+        audio.clear()
+        buffering = True
+        last_partial_at = time.monotonic()
+        partial_state["last_text"] = ""
+        log.info(
+            "ARIA.Utterance.Started",
+            extra={"fields": {"session_id": session_id, "utterance": utterance_gen}},
+        )
+
+    async def _finalize_utterance(*, reason: str) -> None:
+        nonlocal buffering, partial_task
+        if not buffering:
+            return
+
+        wav_bytes = audio.get_bytes()
+        audio.clear()
+        buffering = False
+
+        should_asr, asr_metrics = _should_run_asr(wav_bytes)
+
+        if partial_task is not None:
+            partial_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await partial_task
+            partial_task = None
+
+        text_out = ""
+        asr: ParakeetOnnx | None = getattr(app.state, "asr", None)
+        if asr is not None and wav_bytes and should_asr:
+            try:
+                text_out = await asyncio.to_thread(asr.transcribe, wav_bytes)
+            except Exception as e:
+                log.info(
+                    "ARIA.ASR.Error",
+                    extra={
+                        "fields": {
+                            "session_id": session_id,
+                            "utterance": utterance_gen,
+                            "error": repr(e),
+                        }
+                    },
+                )
+                text_out = ""
+
+        # Drop common filler hallucinations for low-speech utterances.
+        text_out = _filter_transcript(
+            text_out,
+            seconds=float(asr_metrics.get("seconds", 0.0)),
+            speech_ratio=float(asr_metrics.get("speech_ratio", 0.0)),
+        )
+
+        # Spec change: server prints transcripts; nothing is sent back to clients.
+        if text_out:
+            print(f"ARIA.TRANSCRIPT: {text_out}", flush=True)
+            _enqueue_final_llm(app, text_out)
+
+        if not client_vad_enabled:
+            vad.reset()
+
+        log.info(
+            "ARIA.Utterance.Final",
+            extra={
+                "fields": {
+                    "session_id": session_id,
+                    "utterance": utterance_gen,
+                    "text_len": len(text_out),
+                    "bytes": len(wav_bytes),
+                    "reason": reason,
+                    "mode": "client_vad" if client_vad_enabled else "server_vad",
+                    **asr_metrics,
+                    "asr_ran": bool(should_asr),
+                }
+            },
+        )
+
     try:
         while True:
             message = await ws.receive()
             if message.get("type") == "websocket.disconnect":
+                if client_vad_enabled and buffering:
+                    await _finalize_utterance(reason="disconnect")
                 log.info("ARIA.Session.Disconnected", extra={"fields": {"session_id": session_id}})
                 return
 
@@ -149,16 +379,38 @@ async def ws_asr(ws: WebSocket) -> None:
                         return
 
                     started = True
+                    client_vad_enabled = bool(payload.get("client_vad"))
+                    client_vad_started = False
                     log.info(
                         "ARIA.Session.Started",
-                        extra={"fields": {"session_id": session_id, "chunk_ms": payload.get("chunk_ms")}},
+                        extra={
+                            "fields": {
+                                "session_id": session_id,
+                                "chunk_ms": payload.get("chunk_ms"),
+                                "client_vad": client_vad_enabled,
+                            }
+                        },
                     )
                     continue
 
                 if msg_type == "stop":
+                    if client_vad_enabled and buffering:
+                        await _finalize_utterance(reason="stop")
                     log.info("ARIA.Session.Stopped", extra={"fields": {"session_id": session_id}})
                     await ws.close()
                     return
+
+                if client_vad_enabled and msg_type == "utterance_start":
+                    if buffering:
+                        await _finalize_utterance(reason="client_new_start")
+                    client_vad_started = True
+                    await _start_utterance()
+                    continue
+
+                if client_vad_enabled and msg_type == "utterance_end":
+                    await _finalize_utterance(reason="client_end")
+                    client_vad_started = False
+                    continue
 
                 continue
 
@@ -167,18 +419,26 @@ async def ws_asr(ws: WebSocket) -> None:
                     await ws.close(code=1003)
                     return
 
-                update = vad.push(data)
-
-                if update.utterance_started:
-                    utterance_gen += 1
-                    audio.clear()
-                    buffering = True
-                    last_partial_at = time.monotonic()
-                    partial_state["last_text"] = ""
-                    log.info(
-                        "ARIA.Utterance.Started",
-                        extra={"fields": {"session_id": session_id, "utterance": utterance_gen}},
-                    )
+                if not client_vad_enabled:
+                    update = vad.push(data)
+                    if update.utterance_started:
+                        await _start_utterance()
+                else:
+                    # Client-side VAD: only buffer inside explicit utterance boundaries.
+                    if not client_vad_started and not buffering:
+                        dropped_prestart_bytes += len(data)
+                        if dropped_prestart_bytes >= 32000:  # ~1s at 16kHz mono PCM16
+                            log.info(
+                                "ARIA.ClientVAD.DroppingAudioBeforeStart",
+                                extra={
+                                    "fields": {
+                                        "session_id": session_id,
+                                        "dropped_bytes": dropped_prestart_bytes,
+                                    }
+                                },
+                            )
+                            dropped_prestart_bytes = 0
+                        continue
 
                 if buffering:
                     dropped = audio.append(data)
@@ -209,51 +469,8 @@ async def ws_asr(ws: WebSocket) -> None:
                                     _emit_partial_print(app, session_id, utterance_gen, wav_tail, partial_state)
                                 )
 
-                if update.utterance_ended and buffering:
-                    wav_bytes = audio.get_bytes()
-                    audio.clear()
-                    buffering = False
-
-                    if partial_task is not None:
-                        partial_task.cancel()
-                        with contextlib.suppress(asyncio.CancelledError):
-                            await partial_task
-                        partial_task = None
-
-                    text_out = ""
-                    asr: ParakeetOnnx | None = getattr(app.state, "asr", None)
-                    if asr is not None and wav_bytes:
-                        try:
-                            text_out = await asyncio.to_thread(asr.transcribe, wav_bytes)
-                        except Exception as e:
-                            log.info(
-                                "ARIA.ASR.Error",
-                                extra={
-                                    "fields": {
-                                        "session_id": session_id,
-                                        "utterance": utterance_gen,
-                                        "error": repr(e),
-                                    }
-                                },
-                            )
-                            text_out = ""
-
-                    # Spec change: server prints transcripts; nothing is sent back to clients.
-                    if text_out:
-                        print(f"ARIA.TRANSCRIPT: {text_out}", flush=True)
-                        _enqueue_final_llm(app, text_out)
-                    vad.reset()
-                    log.info(
-                        "ARIA.Utterance.Final",
-                        extra={
-                            "fields": {
-                                "session_id": session_id,
-                                "utterance": utterance_gen,
-                                "text_len": len(text_out),
-                                "bytes": len(wav_bytes),
-                            }
-                        },
-                    )
+                if not client_vad_enabled and update.utterance_ended and buffering:
+                    await _finalize_utterance(reason="server_vad")
 
     finally:
         if partial_task is not None:
@@ -271,6 +488,10 @@ async def _emit_partial_print(
     asr: ParakeetOnnx | None = getattr(app.state, "asr", None)
     if asr is None or not wav_bytes:
         return
+
+    should_asr, asr_metrics = _should_run_asr(wav_bytes)
+    if not should_asr:
+        return
     try:
         text_out = await asyncio.to_thread(asr.transcribe, wav_bytes)
     except Exception as e:
@@ -279,6 +500,12 @@ async def _emit_partial_print(
             extra={"fields": {"session_id": session_id, "utterance": utterance, "error": repr(e)}},
         )
         return
+
+    text_out = _filter_transcript(
+        (text_out or "").strip(),
+        seconds=float(asr_metrics.get("seconds", 0.0)),
+        speech_ratio=float(asr_metrics.get("speech_ratio", 0.0)),
+    )
 
     # Avoid printing the same partial repeatedly.
     if not text_out or text_out == partial_state.get("last_text", ""):
@@ -320,14 +547,75 @@ async def _llm_worker(app: FastAPI) -> None:
     if q is None or config is None:
         return
 
+    llm_debug = os.environ.get("ARIA_LLM_DEBUG", "").strip() not in {"", "0", "false", "False"}
+
+    log.info(
+        "ARIA.LLM.WorkerStarted",
+        extra={"fields": {"url": getattr(config, "url", None), "model": getattr(config, "model", None)}},
+    )
+
     while True:
         transcript = await q.get()
         try:
-            response = await generate_ollama_response(text=transcript, config=config, client=client)
+            # Always emit a low-noise marker so it's obvious when a request is fired.
+            # (Full prompt logging is gated behind ARIA_LLM_DEBUG.)
+            log.info(
+                "ARIA.LLM.Start",
+                extra={
+                    "fields": {
+                        "transcript_len": len(transcript),
+                        "queue_pending": q.qsize(),
+                    }
+                },
+            )
+            if llm_debug:
+                max_chars = int(os.environ.get("ARIA_LLM_DEBUG_MAX_CHARS", "800"))
+                user_text = transcript if len(transcript) <= max_chars else (transcript[:max_chars] + "…")
+                sys_text = SYSTEM_PROMPT
+                sys_text = sys_text if len(sys_text) <= 300 else (sys_text[:300] + "…")
+                log.info(
+                    "ARIA.LLM.Request",
+                    extra={
+                        "fields": {
+                            "system": sys_text,
+                            "user": user_text,
+                            "transcript_len": len(transcript),
+                        }
+                    },
+                )
+            t0 = time.monotonic()
+            response = await generate_llm_response(text=transcript, config=config, client=client)
+            dt_ms = int((time.monotonic() - t0) * 1000)
             if response:
                 print(f"ARIA.LLM: {response}", flush=True)
+                log.info(
+                    "ARIA.LLM.Done",
+                    extra={
+                        "fields": {
+                            "ms": dt_ms,
+                            "transcript_len": len(transcript),
+                            "response_len": len(response),
+                        }
+                    },
+                )
+
+                # Optional TTS: speak the LLM response to Sonos.
+                speech = getattr(app.state, "speech_output", None)
+                if speech is not None:
+                    try:
+                        await speech.speak(response)
+                    except Exception as e:
+                        log.info("ARIA.TTS.Error", extra={"fields": {"error": repr(e)}})
+            else:
+                log.info(
+                    "ARIA.LLM.EmptyResponse",
+                    extra={"fields": {"ms": dt_ms, "transcript_len": len(transcript)}},
+                )
         except Exception as e:
-            log.info("ARIA.LLM.Error", extra={"fields": {"error": repr(e)}})
+            log.info(
+                "ARIA.LLM.Error",
+                extra={"fields": {"error": repr(e), "transcript_len": len(transcript)}},
+            )
 
 
 def _safe_json(text: str) -> dict[str, Any] | None:

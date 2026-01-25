@@ -11,7 +11,8 @@ dependencies = [
   "onnx-asr>=0.10",
   "onnxruntime>=1.17",
   "webrtcvad>=2.0.10",
-  "setuptools>=68",
+  "soco>=0.30.0",
+  "setuptools>=68,<81",
 ]
 
 [project.scripts]
@@ -22,7 +23,16 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["app", "app.asr", "app.audio", "app.llm"]
+packages = [
+  "app",
+  "app.asr",
+  "app.audio",
+  "app.llm",
+  "app.tts",
+  "app.http_audio",
+  "app.audio_sink",
+  "app.speech_output",
+]
 
 [tool.uvicorn]
 factory = false

@@ -43,11 +43,27 @@ Optional: print capture stats (RMS/gain):
 ARIA_CLIENT_DEBUG=1 /Users/kaneda/dev/aria/.venv/bin/python client/macos/mic_stream.py ws://localhost:8000/ws/asr
 ```
 
+Optional: enable client-side VAD (reduces bandwidth; server bypasses its own VAD):
+
+```zsh
+ARIA_CLIENT_VAD=1 /Users/kaneda/dev/aria/.venv/bin/python client/macos/mic_stream.py ws://localhost:8000/ws/asr
+```
+
+Client VAD tuning:
+- `ARIA_CLIENT_VAD_AGGR` (0-3): aggressiveness (default `2`)
+- `ARIA_CLIENT_VAD_SILENCE_MS`: silence that ends an utterance (default `300`)
+- `ARIA_CLIENT_VAD_PRE_MS`: pre-roll before speech start (default `200`)
+- `ARIA_CLIENT_VAD_START_FRAMES`: consecutive 20ms speech frames required to start (default `3`)
+- `ARIA_CLIENT_VAD_MIN_RMS`: RMS floor to ignore low-level noise (default `0.0`)
+- `ARIA_CLIENT_VAD_SNR_DB`: SNR threshold (dB) vs adaptive noise floor (default `0.0` = off)
+- `ARIA_CLIENT_VAD_NOISE_ALPHA`: EMA rate for adaptive noise floor (default `0.05`)
+
 Notes:
 - Audio contract is fixed to 16kHz mono PCM16LE.
 - Stop with Ctrl+C.
 
-If your mic level is very low, the client enables a conservative AGC by default.
+If your mic level is very low, the client enables a conservative AGC by default (when client VAD is off).
+When `ARIA_CLIENT_VAD=1`, AGC defaults off to avoid boosting background noise and triggering VAD.
 You can override it with:
 - `ARIA_CLIENT_GAIN=10` (fixed gain)
 - `ARIA_CLIENT_AGC=0` (disable AGC)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import collections
 import contextlib
 import json
 import os
@@ -15,6 +16,11 @@ import numpy as np
 import sounddevice as sd
 import soxr
 import websockets
+
+try:
+    import webrtcvad
+except Exception:  # pragma: no cover
+    webrtcvad = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,6 +43,14 @@ class AriaAudioContract:
 class ClientStats:
     enqueued_blocks: int = 0
     dropped_queue_blocks: int = 0
+
+
+def _truthy_env(name: str, default: str = "0") -> bool:
+    return os.environ.get(name, default).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _send_msg(payload: dict[str, Any]) -> str:
+    return json.dumps(payload, separators=(",", ":"))
 
 
 def _normalize_ws_url(raw: str) -> str:
@@ -144,6 +158,7 @@ async def _send_loop(
     in_sample_rate: int,
     contract: AriaAudioContract,
     stats: ClientStats,
+    client_vad_enabled: bool,
 ) -> None:
     # IMPORTANT CONTEXT:
     # - We capture at the device's native rate to avoid drift/timing artifacts seen
@@ -161,6 +176,44 @@ async def _send_loop(
     out_bytes = bytearray()
     debug = os.environ.get("ARIA_CLIENT_DEBUG", "").strip() not in {"", "0", "false", "False"}
 
+    # Optional client-side WebRTC VAD (sends only speech + explicit utterance boundaries).
+    # Enabled with ARIA_CLIENT_VAD=1.
+    vad = None
+    vad_frame_ms = 20
+    vad_frame_bytes = int(contract.sample_rate * 2 * vad_frame_ms / 1000)
+    vad_silence_ms = int(os.environ.get("ARIA_CLIENT_VAD_SILENCE_MS", "300"))
+    vad_aggr = int(os.environ.get("ARIA_CLIENT_VAD_AGGR", "2"))
+    vad_pre_ms = int(os.environ.get("ARIA_CLIENT_VAD_PRE_MS", "200"))
+    vad_start_frames = int(os.environ.get("ARIA_CLIENT_VAD_START_FRAMES", "3"))
+    vad_min_rms = float(os.environ.get("ARIA_CLIENT_VAD_MIN_RMS", "0.0"))
+    vad_snr_db = float(os.environ.get("ARIA_CLIENT_VAD_SNR_DB", "0.0"))
+    vad_noise_alpha = float(os.environ.get("ARIA_CLIENT_VAD_NOISE_ALPHA", "0.05"))
+    vad_pre_frames = max(0, int(vad_pre_ms / vad_frame_ms))
+    vad_pending = bytearray()
+    vad_preroll: collections.deque[bytes] = collections.deque(maxlen=vad_pre_frames)
+    vad_in_utt = False
+    vad_silence_acc = 0
+    vad_speech_run = 0
+    vad_send_buf = bytearray()
+    vad_noise_rms = 0.0
+    vad_snr_mult = 1.0
+    if vad_snr_db > 0.0:
+        vad_snr_mult = float(10.0 ** (vad_snr_db / 20.0))
+
+    if client_vad_enabled:
+        if webrtcvad is None:
+            print(
+                "ARIA: client VAD requested but webrtcvad is not installed; disabling ARIA_CLIENT_VAD",
+                file=sys.stderr,
+                flush=True,
+            )
+            client_vad_enabled = False
+        else:
+            try:
+                vad = webrtcvad.Vad(int(vad_aggr))
+            except Exception:
+                vad = webrtcvad.Vad(2)
+
     # Gain strategy:
     # - If ARIA_CLIENT_GAIN is set, use it as a fixed multiplier.
     # - Otherwise use a conservative automatic gain control (AGC) to help very
@@ -175,7 +228,10 @@ async def _send_loop(
         if fixed_gain <= 0:
             fixed_gain = 1.0
 
-    agc_enabled = os.environ.get("ARIA_CLIENT_AGC", "1").strip() not in {"0", "false", "False"}
+    # AGC can significantly raise the noise floor in quiet rooms, which can cause
+    # client-side VAD to trigger continuously. Default AGC off when client VAD is on.
+    default_agc = "0" if client_vad_enabled else "1"
+    agc_enabled = os.environ.get("ARIA_CLIENT_AGC", default_agc).strip() not in {"0", "false", "False"}
     target_rms = float(os.environ.get("ARIA_CLIENT_TARGET_RMS", "0.05"))
     max_gain = float(os.environ.get("ARIA_CLIENT_MAX_GAIN", "50"))
     gain = 1.0
@@ -193,12 +249,21 @@ async def _send_loop(
                 if now - last_stat >= 1.0:
                     rms_pre = (stat_pre_acc / stat_n) ** 0.5 if stat_n else 0.0
                     rms_post = (stat_post_acc / stat_n) ** 0.5 if stat_n else 0.0
+                    if client_vad_enabled:
+                        pending_str = (
+                            f"vad_in_utt={1 if vad_in_utt else 0} "
+                            f"vad_pending={len(vad_pending)}B send_buf={len(vad_send_buf)}B "
+                            f"silence_ms={vad_silence_acc} noise={vad_noise_rms:.4f}"
+                        )
+                    else:
+                        pending_str = f"pending={len(out_bytes)}B"
                     print(
                         (
-                            f"ARIA stats: sent={sent_bytes}B queued={queue.qsize()} pending={len(out_bytes)}B "
+                            f"ARIA stats: sent={sent_bytes}B queued={queue.qsize()} {pending_str} "
                             f"rms_pre={rms_pre:.5f} rms_post={rms_post:.5f} "
                             f"gain={gain:.2f} dropped_ws_chunks={dropped_ws_chunks} "
                             f"enq={stats.enqueued_blocks} drop_q={stats.dropped_queue_blocks} "
+                            f"client_vad={'on' if client_vad_enabled else 'off'} "
                             f"agc={'on' if agc_enabled and fixed_gain is None else 'off'} "
                             f"target={target_rms:g} max_gain={max_gain:g}"
                         ),
@@ -210,8 +275,36 @@ async def _send_loop(
                     stat_post_acc = 0.0
                     stat_n = 0
 
-            if stop_event.is_set() and queue.empty() and len(out_bytes) < contract.bytes_per_chunk:
-                return
+            if stop_event.is_set() and queue.empty():
+                if not client_vad_enabled and len(out_bytes) < contract.bytes_per_chunk:
+                    return
+
+                if client_vad_enabled and len(vad_pending) < vad_frame_bytes and len(vad_send_buf) < contract.bytes_per_chunk:
+                    if vad_in_utt:
+                        # Flush any pending audio and close the utterance.
+                        while len(vad_send_buf) >= contract.bytes_per_chunk:
+                            chunk = bytes(vad_send_buf[: contract.bytes_per_chunk])
+                            del vad_send_buf[: contract.bytes_per_chunk]
+                            try:
+                                await asyncio.wait_for(ws.send(chunk), timeout=0.05)
+                                sent_bytes += len(chunk)
+                            except asyncio.TimeoutError:
+                                dropped_ws_chunks += 1
+
+                        if vad_send_buf:
+                            try:
+                                await asyncio.wait_for(ws.send(bytes(vad_send_buf)), timeout=0.05)
+                                sent_bytes += len(vad_send_buf)
+                            except asyncio.TimeoutError:
+                                dropped_ws_chunks += 1
+                        vad_send_buf.clear()
+
+                        try:
+                            await asyncio.wait_for(ws.send(_send_msg({"type": "utterance_end"})), timeout=0.2)
+                        except Exception:
+                            pass
+
+                    return
             try:
                 block = await asyncio.wait_for(queue.get(), timeout=0.1)
             except asyncio.TimeoutError:
@@ -248,19 +341,111 @@ async def _send_loop(
             # Convert float32 [-1, 1] -> PCM16LE.
             y = np.clip(y, -1.0, 1.0)
             pcm16 = (y * 32767.0).astype(np.int16)
-            out_bytes.extend(pcm16.tobytes(order="C"))
+            pcm_bytes = pcm16.tobytes(order="C")
 
-            # Ensure correct chunk boundaries after resampling: send fixed-size
-            # frames (~40ms @ 16kHz by default).
-            while len(out_bytes) >= contract.bytes_per_chunk:
-                chunk = bytes(out_bytes[: contract.bytes_per_chunk])
-                del out_bytes[: contract.bytes_per_chunk]
-                # Drop audio frames if websocket backpressure occurs (do not buffer unbounded).
+            if not client_vad_enabled:
+                out_bytes.extend(pcm_bytes)
+
+                # Ensure correct chunk boundaries after resampling: send fixed-size
+                # frames (~40ms @ 16kHz by default).
+                while len(out_bytes) >= contract.bytes_per_chunk:
+                    chunk = bytes(out_bytes[: contract.bytes_per_chunk])
+                    del out_bytes[: contract.bytes_per_chunk]
+                    # Drop audio frames if websocket backpressure occurs (do not buffer unbounded).
+                    try:
+                        await asyncio.wait_for(ws.send(chunk), timeout=0.05)
+                        sent_bytes += len(chunk)
+                    except asyncio.TimeoutError:
+                        dropped_ws_chunks += 1
+                continue
+
+            # Client-side VAD path: feed 20ms frames to webrtcvad and only send speech.
+            vad_pending.extend(pcm_bytes)
+            while len(vad_pending) >= vad_frame_bytes:
+                frame = bytes(vad_pending[:vad_frame_bytes])
+                del vad_pending[:vad_frame_bytes]
+
                 try:
-                    await asyncio.wait_for(ws.send(chunk), timeout=0.05)
-                    sent_bytes += len(chunk)
-                except asyncio.TimeoutError:
-                    dropped_ws_chunks += 1
+                    is_speech = bool(vad.is_speech(frame, contract.sample_rate)) if vad is not None else False
+                except Exception:
+                    is_speech = False
+
+                # Compute frame RMS (0..1) and maintain an adaptive noise floor estimate.
+                samples = np.frombuffer(frame, dtype=np.int16).astype(np.float32)
+                frame_rms = float(np.sqrt(np.mean(samples * samples)) / 32768.0) if samples.size else 0.0
+                if not vad_in_utt:
+                    a = float(np.clip(vad_noise_alpha, 0.0, 1.0))
+                    if vad_noise_rms <= 0.0:
+                        vad_noise_rms = frame_rms
+                    else:
+                        vad_noise_rms = (1.0 - a) * vad_noise_rms + a * frame_rms
+
+                energy_ok = True
+
+                # Optional RMS floor to avoid false positives from very low-level noise.
+                if vad_min_rms > 0.0:
+                    if frame_rms < vad_min_rms:
+                        energy_ok = False
+
+                # Optional SNR gating relative to noise floor.
+                if energy_ok and vad_snr_db > 0.0:
+                    denom = vad_noise_rms if vad_noise_rms > 1e-6 else 1e-6
+                    if (frame_rms / denom) < vad_snr_mult:
+                        energy_ok = False
+
+                is_speech_eff = bool(is_speech) and energy_ok
+
+                if not vad_in_utt:
+                    vad_preroll.append(frame)
+                    if is_speech_eff:
+                        vad_speech_run += 1
+                    else:
+                        vad_speech_run = 0
+
+                    # Require N consecutive speech frames before declaring start.
+                    if vad_speech_run < max(1, vad_start_frames):
+                        continue
+
+                    vad_in_utt = True
+                    vad_speech_run = 0
+                    vad_silence_acc = 0
+                    try:
+                        await asyncio.wait_for(ws.send(_send_msg({"type": "utterance_start"})), timeout=0.2)
+                    except Exception:
+                        pass
+                    for fr in list(vad_preroll):
+                        vad_send_buf.extend(fr)
+                    vad_preroll.clear()
+                else:
+                    vad_send_buf.extend(frame)
+                    if is_speech_eff:
+                        vad_silence_acc = 0
+                    else:
+                        vad_silence_acc += vad_frame_ms
+
+                while len(vad_send_buf) >= contract.bytes_per_chunk:
+                    chunk = bytes(vad_send_buf[: contract.bytes_per_chunk])
+                    del vad_send_buf[: contract.bytes_per_chunk]
+                    try:
+                        await asyncio.wait_for(ws.send(chunk), timeout=0.05)
+                        sent_bytes += len(chunk)
+                    except asyncio.TimeoutError:
+                        dropped_ws_chunks += 1
+
+                if vad_in_utt and vad_silence_acc >= vad_silence_ms:
+                    if vad_send_buf:
+                        try:
+                            await asyncio.wait_for(ws.send(bytes(vad_send_buf)), timeout=0.05)
+                            sent_bytes += len(vad_send_buf)
+                        except asyncio.TimeoutError:
+                            dropped_ws_chunks += 1
+                    vad_send_buf.clear()
+                    try:
+                        await asyncio.wait_for(ws.send(_send_msg({"type": "utterance_end"})), timeout=0.2)
+                    except Exception:
+                        pass
+                    vad_in_utt = False
+                    vad_silence_acc = 0
     except asyncio.CancelledError:
         raise
     except Exception:
@@ -328,12 +513,22 @@ async def run_client(url: str, contract: AriaAudioContract, *, device: str | Non
     # Capture in float32 at the device rate; we will resample to 16kHz for transport.
     in_blocksize = max(1, int(round(in_sample_rate * contract.chunk_ms / 1000)))
 
+    client_vad_requested = _truthy_env("ARIA_CLIENT_VAD", "0")
+    client_vad_enabled = client_vad_requested and webrtcvad is not None
+    if client_vad_requested and not client_vad_enabled:
+        print(
+            "ARIA: ARIA_CLIENT_VAD=1 but webrtcvad is not installed in this environment; running without client VAD",
+            file=sys.stderr,
+            flush=True,
+        )
+
     start_msg = {
         "type": "start",
         "sample_rate": contract.sample_rate,
         "channels": contract.channels,
         "format": contract.fmt,
         "chunk_ms": contract.chunk_ms,
+        "client_vad": bool(client_vad_enabled),
     }
 
     async with websockets.connect(ws_url, max_size=None) as ws:
@@ -348,6 +543,7 @@ async def run_client(url: str, contract: AriaAudioContract, *, device: str | Non
                 in_sample_rate=in_sample_rate,
                 contract=contract,
                 stats=stats,
+                client_vad_enabled=bool(client_vad_enabled),
             )
         )
 
