@@ -7,6 +7,7 @@ import json
 import os
 import time
 import shutil
+from collections import deque
 from typing import Any
 from uuid import uuid4
 
@@ -21,6 +22,7 @@ from app.audio.ringbuffer import RingBuffer
 from app.audio.vad import VadConfig, VoiceActivityDetector
 from app.http_audio.server import build_tts_router
 from app.llm.ollama_client import SYSTEM_PROMPT, generate_llm_response, llm_enabled, load_llm_config
+from app.speech_output.echo_guard_v2 import EchoGuardV2
 from app.speech_output.speech_output import maybe_build_speech_output
 
 
@@ -132,8 +134,11 @@ async def lifespan(app: FastAPI):
     app.state.llm_config = None
     app.state.llm_queue = None
     app.state.llm_worker_task = None
+    app.state.llm_history = {}
+    app.state.llm_history_lock = asyncio.Lock()
     app.state.speech_output = None
     app.state.tts_cache_dir = None
+    app.state.echo_guard = EchoGuardV2()
     try:
         if llm_enabled():
             import httpx
@@ -178,7 +183,7 @@ async def lifespan(app: FastAPI):
             )
             speech = None
         else:
-            speech = maybe_build_speech_output()
+            speech = maybe_build_speech_output(app.state.echo_guard)
         if speech is not None:
             app.state.speech_output = speech
             app.state.tts_cache_dir = speech.tts_cache_dir()
@@ -324,9 +329,21 @@ async def ws_asr(ws: WebSocket) -> None:
         )
 
         # Spec change: server prints transcripts; nothing is sent back to clients.
+        should_enqueue = True
         if text_out:
-            print(f"ARIA.TRANSCRIPT: {text_out}", flush=True)
-            _enqueue_final_llm(app, text_out)
+            echo_guard = getattr(app.state, "echo_guard", None)
+            if echo_guard is not None and echo_guard.enabled:
+                suppress, info = echo_guard.should_suppress(text_out, time.time())
+                info = {**info, "session_id": session_id, "utterance": utterance_gen}
+                if suppress:
+                    should_enqueue = False
+                    log.info("ARIA.ECHO_V2: suppressed", extra={"fields": info})
+                else:
+                    log.info("ARIA.ECHO_V2: allowed", extra={"fields": info})
+
+            if should_enqueue:
+                print(f"ARIA.TRANSCRIPT: {text_out}", flush=True)
+                _enqueue_final_llm(app, text_out, session_id)
 
         if not client_vad_enabled:
             vad.reset()
@@ -353,6 +370,11 @@ async def ws_asr(ws: WebSocket) -> None:
             if message.get("type") == "websocket.disconnect":
                 if client_vad_enabled and buffering:
                     await _finalize_utterance(reason="disconnect")
+                history_lock = getattr(app.state, "llm_history_lock", None)
+                history_map = getattr(app.state, "llm_history", None)
+                if history_lock is not None and isinstance(history_map, dict):
+                    async with history_lock:
+                        history_map.pop(session_id, None)
                 log.info("ARIA.Session.Disconnected", extra={"fields": {"session_id": session_id}})
                 return
 
@@ -514,10 +536,19 @@ async def _emit_partial_print(
     print(f"ARIA(partial) {text_out}", flush=True)
 
 
-def _enqueue_final_llm(app: FastAPI, transcript: str) -> None:
+def _llm_history_max_messages() -> int:
+    v = os.environ.get("ARIA_LLM_HISTORY_MAX_MESSAGES", "8")
+    try:
+        max_messages = int(v)
+    except ValueError:
+        max_messages = 8
+    return max(0, max_messages)
+
+
+def _enqueue_final_llm(app: FastAPI, transcript: str, session_id: str | None) -> None:
     """Enqueue a final transcript for LLM processing without blocking."""
 
-    q: asyncio.Queue[str] | None = getattr(app.state, "llm_queue", None)
+    q: asyncio.Queue[tuple[str | None, str]] | None = getattr(app.state, "llm_queue", None)
     if q is None:
         return
 
@@ -526,13 +557,13 @@ def _enqueue_final_llm(app: FastAPI, transcript: str) -> None:
         return
 
     try:
-        q.put_nowait(text)
+        q.put_nowait((session_id, text))
     except asyncio.QueueFull:
         # Drop the previous queued item and keep the latest.
         with contextlib.suppress(Exception):
             _ = q.get_nowait()
         with contextlib.suppress(asyncio.QueueFull):
-            q.put_nowait(text)
+            q.put_nowait((session_id, text))
 
 
 async def _llm_worker(app: FastAPI) -> None:
@@ -541,7 +572,7 @@ async def _llm_worker(app: FastAPI) -> None:
     Runs independently of the WebSocket receive loop so LLM latency cannot block audio ingestion.
     """
 
-    q: asyncio.Queue[str] | None = getattr(app.state, "llm_queue", None)
+    q: asyncio.Queue[tuple[str | None, str]] | None = getattr(app.state, "llm_queue", None)
     config = getattr(app.state, "llm_config", None)
     client = getattr(app.state, "llm_client", None)
     if q is None or config is None:
@@ -555,7 +586,11 @@ async def _llm_worker(app: FastAPI) -> None:
     )
 
     while True:
-        transcript = await q.get()
+        item = await q.get()
+        if isinstance(item, tuple):
+            session_id, transcript = item
+        else:
+            session_id, transcript = None, str(item)
         try:
             # Always emit a low-noise marker so it's obvious when a request is fired.
             # (Full prompt logging is gated behind ARIA_LLM_DEBUG.)
@@ -583,8 +618,30 @@ async def _llm_worker(app: FastAPI) -> None:
                         }
                     },
                 )
+            history_max = _llm_history_max_messages()
+            messages: list[dict[str, str]] | None = None
+            if history_max > 0 and session_id:
+                history_lock = getattr(app.state, "llm_history_lock", None)
+                history_map = getattr(app.state, "llm_history", None)
+                if history_lock is not None and isinstance(history_map, dict):
+                    async with history_lock:
+                        history = history_map.get(session_id)
+                        if history:
+                            messages = [{"role": "system", "content": SYSTEM_PROMPT}, *list(history)]
+
+            if messages is None:
+                messages = [
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                ]
+            messages.append({"role": "user", "content": transcript})
+
             t0 = time.monotonic()
-            response = await generate_llm_response(text=transcript, config=config, client=client)
+            response = await generate_llm_response(
+                text=transcript,
+                messages=messages,
+                config=config,
+                client=client,
+            )
             dt_ms = int((time.monotonic() - t0) * 1000)
             if response:
                 print(f"ARIA.LLM: {response}", flush=True)
@@ -598,6 +655,18 @@ async def _llm_worker(app: FastAPI) -> None:
                         }
                     },
                 )
+
+                if history_max > 0 and session_id:
+                    history_lock = getattr(app.state, "llm_history_lock", None)
+                    history_map = getattr(app.state, "llm_history", None)
+                    if history_lock is not None and isinstance(history_map, dict):
+                        async with history_lock:
+                            history = history_map.get(session_id)
+                            if history is None or getattr(history, "maxlen", None) != history_max:
+                                history = deque(list(history or []), maxlen=history_max)
+                                history_map[session_id] = history
+                            history.append({"role": "user", "content": transcript})
+                            history.append({"role": "assistant", "content": response})
 
                 # Optional TTS: speak the LLM response to Sonos.
                 speech = getattr(app.state, "speech_output", None)

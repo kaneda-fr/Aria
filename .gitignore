@@ -61,5 +61,5 @@ get-pip.py
 .copilot-instructions.md.old
 docs/archive/
 
-#ignore sync file
-sync.sh
+#ignore local shell file
+*.sh

@@ -458,8 +458,6 @@ async def run_client(url: str, contract: AriaAudioContract, *, device: str | Non
     ws_url = _normalize_ws_url(url)
     loop = asyncio.get_running_loop()
     stop_event = asyncio.Event()
-    queue: asyncio.Queue[np.ndarray] = asyncio.Queue(maxsize=50)
-    stats = ClientStats()
     dropped = 0
 
     def request_stop() -> None:
@@ -471,31 +469,6 @@ async def run_client(url: str, contract: AriaAudioContract, *, device: str | Non
         except NotImplementedError:
             # Some environments don't support signal handlers.
             pass
-
-    def _enqueue_block(block: np.ndarray) -> None:
-        nonlocal dropped
-        if stop_event.is_set():
-            return
-        try:
-            queue.put_nowait(block)
-            stats.enqueued_blocks += 1
-        except asyncio.QueueFull:
-            dropped += 1
-            stats.dropped_queue_blocks += 1
-
-    def audio_callback(indata: np.ndarray, frames: int, _time: Any, status: sd.CallbackFlags) -> None:
-        if stop_event.is_set():
-            return
-        if status:
-            # Over/under-runs happen; we prefer dropping over blocking.
-            pass
-
-        # Ensure mono float32 (sounddevice provides float32 when configured).
-        data = indata
-        if data.ndim == 2:
-            data = data[:, 0]
-        block = np.asarray(data, dtype=np.float32).copy()
-        loop.call_soon_threadsafe(_enqueue_block, block)
 
     # Query the default input device's native sample rate (do NOT force 16k at capture).
     selected_device = _select_input_device(device)
@@ -522,58 +495,95 @@ async def run_client(url: str, contract: AriaAudioContract, *, device: str | Non
             flush=True,
         )
 
-    start_msg = {
-        "type": "start",
-        "sample_rate": contract.sample_rate,
-        "channels": contract.channels,
-        "format": contract.fmt,
-        "chunk_ms": contract.chunk_ms,
-        "client_vad": bool(client_vad_enabled),
-    }
+    reconnect_delay = 5.0
+    while not stop_event.is_set():
+        queue = asyncio.Queue(maxsize=50)
+        stats = ClientStats()
+        conn_stop = asyncio.Event()
 
-    async with websockets.connect(ws_url, max_size=None) as ws:
-        await ws.send(json.dumps(start_msg))
-
-        recv_task = asyncio.create_task(_recv_loop(ws, stop_event))
-        send_task = asyncio.create_task(
-            _send_loop(
-                ws,
-                queue,
-                stop_event,
-                in_sample_rate=in_sample_rate,
-                contract=contract,
-                stats=stats,
-                client_vad_enabled=bool(client_vad_enabled),
-            )
-        )
-
-        # Start microphone capture.
-        stream = sd.InputStream(
-            samplerate=in_sample_rate,
-            channels=contract.channels,
-            dtype="float32",
-            blocksize=in_blocksize,
-            device=selected_device,
-            callback=audio_callback,
-        )
-
-        try:
-            with stream:
-                while not stop_event.is_set():
-                    await asyncio.sleep(0.1)
-        finally:
-            stop_event.set()
+        def _enqueue_block(block: np.ndarray) -> None:
+            nonlocal dropped
+            if stop_event.is_set() or conn_stop.is_set():
+                return
             try:
-                await ws.send(json.dumps({"type": "stop"}))
-            except Exception:
+                queue.put_nowait(block)
+                stats.enqueued_blocks += 1
+            except asyncio.QueueFull:
+                dropped += 1
+                stats.dropped_queue_blocks += 1
+
+        def audio_callback(indata: np.ndarray, frames: int, _time: Any, status: sd.CallbackFlags) -> None:
+            if stop_event.is_set() or conn_stop.is_set():
+                return
+            if status:
+                # Over/under-runs happen; we prefer dropping over blocking.
                 pass
 
-            send_task.cancel()
-            recv_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await send_task
-            with contextlib.suppress(asyncio.CancelledError):
-                await recv_task
+            # Ensure mono float32 (sounddevice provides float32 when configured).
+            data = indata
+            if data.ndim == 2:
+                data = data[:, 0]
+            block = np.asarray(data, dtype=np.float32).copy()
+            loop.call_soon_threadsafe(_enqueue_block, block)
+
+        start_msg = {
+            "type": "start",
+            "sample_rate": contract.sample_rate,
+            "channels": contract.channels,
+            "format": contract.fmt,
+            "chunk_ms": contract.chunk_ms,
+            "client_vad": bool(client_vad_enabled),
+        }
+
+        try:
+            async with websockets.connect(ws_url, max_size=None) as ws:
+                await ws.send(json.dumps(start_msg))
+
+                recv_task = asyncio.create_task(_recv_loop(ws, conn_stop))
+                send_task = asyncio.create_task(
+                    _send_loop(
+                        ws,
+                        queue,
+                        conn_stop,
+                        in_sample_rate=in_sample_rate,
+                        contract=contract,
+                        stats=stats,
+                        client_vad_enabled=bool(client_vad_enabled),
+                    )
+                )
+
+                # Start microphone capture.
+                stream = sd.InputStream(
+                    samplerate=in_sample_rate,
+                    channels=contract.channels,
+                    dtype="float32",
+                    blocksize=in_blocksize,
+                    device=selected_device,
+                    callback=audio_callback,
+                )
+
+                try:
+                    with stream:
+                        while not stop_event.is_set() and not conn_stop.is_set():
+                            await asyncio.sleep(0.1)
+                finally:
+                    conn_stop.set()
+                    try:
+                        await ws.send(json.dumps({"type": "stop"}))
+                    except Exception:
+                        pass
+
+                    send_task.cancel()
+                    recv_task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await send_task
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await recv_task
+        except Exception:
+            if stop_event.is_set():
+                break
+            print(f"ARIA: connection lost, retrying in {reconnect_delay:.0f}s", file=sys.stderr, flush=True)
+            await asyncio.sleep(reconnect_delay)
 
     if dropped:
         print(f"Dropped {dropped} audio chunks due to backpressure", file=sys.stderr)

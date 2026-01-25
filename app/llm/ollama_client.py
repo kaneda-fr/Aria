@@ -12,7 +12,10 @@ except ImportError:  # pragma: no cover
     from typing_extensions import Literal
 
 
-SYSTEM_PROMPT = "You are ARIA, a local assistant running on a private server."
+SYSTEM_PROMPT = os.environ.get(
+    "ARIA_LLM_SYSTEM_PROMPT",
+    "You are ARIA, a local assistant running on a private server. Answer in 1-2 sentences. Be concise and direct.",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -131,6 +134,7 @@ def load_llm_config() -> OllamaConfig | LlamaCppConfig:
 async def generate_ollama_response(
     *,
     text: str,
+    messages: list[dict[str, str]] | None = None,
     config: OllamaConfig,
     client: httpx.AsyncClient | None = None,
 ) -> str:
@@ -140,8 +144,13 @@ async def generate_ollama_response(
     When streaming, logs each chunk as received and returns accumulated text.
     """
 
-    if not text.strip():
-        return ""
+    if messages is None:
+        if not text.strip():
+            return ""
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": text.strip()},
+        ]
 
     async def _post(c: httpx.AsyncClient) -> str:
         # Prefer /api/chat for system+user prompting.
@@ -149,10 +158,7 @@ async def generate_ollama_response(
         payload = {
             "model": config.model,
             "stream": config.stream,
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": text.strip()},
-            ],
+            "messages": messages,
         }
 
         options: dict[str, object] = {}
@@ -204,13 +210,19 @@ async def generate_ollama_response(
 async def generate_llamacpp_response(
     *,
     text: str,
+    messages: list[dict[str, str]] | None = None,
     config: LlamaCppConfig,
     client: httpx.AsyncClient | None = None,
 ) -> str:
     """Send final transcript text to llama-cpp-python (OpenAI-compatible) and return response text."""
 
-    if not text.strip():
-        return ""
+    if messages is None:
+        if not text.strip():
+            return ""
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": text.strip()},
+        ]
 
     # Allow url to be either .../v1 or .../v1/ (or even .../v1/chat/completions).
     base = config.url.rstrip("/")
@@ -222,10 +234,7 @@ async def generate_llamacpp_response(
     payload: dict[str, object] = {
         "model": config.model,
         "stream": config.stream,
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": text.strip()},
-        ],
+        "messages": messages,
     }
     if config.max_tokens is not None:
         payload["max_tokens"] = int(config.max_tokens)
@@ -281,9 +290,10 @@ async def generate_llamacpp_response(
 async def generate_llm_response(
     *,
     text: str,
+    messages: list[dict[str, str]] | None = None,
     config: OllamaConfig | LlamaCppConfig,
     client: httpx.AsyncClient | None = None,
 ) -> str:
     if isinstance(config, OllamaConfig):
-        return await generate_ollama_response(text=text, config=config, client=client)
-    return await generate_llamacpp_response(text=text, config=config, client=client)
+        return await generate_ollama_response(text=text, messages=messages, config=config, client=client)
+    return await generate_llamacpp_response(text=text, messages=messages, config=config, client=client)
