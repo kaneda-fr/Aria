@@ -60,3 +60,6 @@ get-pip.py
 # Project-specific
 .copilot-instructions.md.old
 docs/archive/
+
+#ignore sync file
+sync.sh
