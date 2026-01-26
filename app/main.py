@@ -336,8 +336,6 @@ async def ws_asr(ws: WebSocket) -> None:
         speaker_user = "unknown"
         if text_out:
             spk = getattr(app.state, "spk_recognizer", None)
-            aria_prefixes = ("aria_", "aria")
-            aria_detected = False
             if spk is not None and getattr(spk, "enabled", False):
                 timeout_s = float(os.environ.get("ARIA_SPK_TIMEOUT_SEC", "1.0") or "1.0")
                 try:
@@ -376,23 +374,9 @@ async def ws_asr(ws: WebSocket) -> None:
                             }
                         },
                     )
-                    self_names = {n.lower() for n in getattr(spk, "self_names", ())}
-                    name_lc = spk_result.name.lower()
-                    log.info(
-                        "ARIA.SPK: suppression_check",
-                        extra={
-                            "fields": {
-                                "session_id": session_id,
-                                "utterance": utterance_gen,
-                                "name_lc": name_lc,
-                                "aria_prefixes": aria_prefixes,
-                            }
-                        },
-                    )
-                    # Suppress if speaker name matches aria* (case-insensitive, prefix)
-                    if any(name_lc.startswith(prefix) for prefix in aria_prefixes):
+                    # Suppress if speaker is aria to prevent feedback loop
+                    if speaker_user == "aria":
                         should_enqueue = False
-                        aria_detected = True
                         log.info(
                             "ARIA.SPK: suppressed_aria_speaker",
                             extra={
@@ -401,27 +385,31 @@ async def ws_asr(ws: WebSocket) -> None:
                                     "utterance": utterance_gen,
                                     "name": spk_result.name,
                                     "score": spk_result.score,
+                                    "user": speaker_user,
                                 }
                             },
                         )
-                    # Suppress if self speech (existing logic)
-                    if (
-                        spk_result.known
-                        and name_lc in self_names
-                        and spk_result.score >= getattr(spk, "self_min_score", 0.0)
-                    ):
-                        should_enqueue = False
-                        log.info(
-                            "ARIA.SPK: suppressed_self_speech",
-                            extra={
-                                "fields": {
-                                    "session_id": session_id,
-                                    "utterance": utterance_gen,
-                                    "name": spk_result.name,
-                                    "score": spk_result.score,
-                                }
-                            },
-                        )
+                    else:
+                        # Suppress if self speech (existing logic)
+                        self_names = {n.lower() for n in getattr(spk, "self_names", ())}
+                        name_lc = spk_result.name.lower()
+                        if (
+                            spk_result.known
+                            and name_lc in self_names
+                            and spk_result.score >= getattr(spk, "self_min_score", 0.0)
+                        ):
+                            should_enqueue = False
+                            log.info(
+                                "ARIA.SPK: suppressed_self_speech",
+                                extra={
+                                    "fields": {
+                                        "session_id": session_id,
+                                        "utterance": utterance_gen,
+                                        "name": spk_result.name,
+                                        "score": spk_result.score,
+                                    }
+                                },
+                            )
 
             if should_enqueue:
                 echo_guard = getattr(app.state, "echo_guard", None)

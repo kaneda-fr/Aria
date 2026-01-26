@@ -86,8 +86,8 @@ Recommended:
 
 Suggested env vars:
 - `ARIA_SPK_PROFILES_DIR=/var/aria/profiles`
-- `ARIA_SPK_THRESHOLD=0.65`
-- `ARIA_SPK_SELF_NAME=aria`
+- `ARIA_SPK_THRESHOLD_DEFAULT=0.65`
+- `ARIA_SPK_SELF_NAMES=aria_fr,aria_en`
 
 ## Configuration
 
