@@ -15,7 +15,7 @@ ARIA_CLIENT_VAD_START_FRAMES=5 \
 ARIA_CLIENT_VAD_SNR_DB=10 \
 ARIA_CLIENT_VAD_SILENCE_MS=350 \
 ARIA_CLIENT_DEBUG=1 \
-python -m client.macos.mic_stream 192.168.100.100:8000
+python -m client.macos.mic_stream 192.0.2.10:8000
 ```
 
 Notes:

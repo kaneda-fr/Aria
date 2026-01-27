@@ -1,3 +1,8 @@
+> **ARCHIVED / OBSOLETE**
+>
+> This file is kept for historical reference only and may conflict with current project behavior.
+> Use **[.copilot-instructions.md](../../.copilot-instructions.md)** as the single authoritative specification.
+
 # ARIA Copilot Instructions — ASR, LLM, and Local TTS (Sonos)
 
 Use the instructions defined in `$HOME/dev/aria/.copilot-instructions.md` as the authoritative project specification.
@@ -218,10 +223,10 @@ ARIA_TTS_MIN_CHUNK_CHARS=60
 ARIA_TTS_SINK=sonos_http
 
 # Sonos control
-ARIA_SONOS_IP=<sonos_speaker_ip>                 # e.g. 192.168.100.222
+ARIA_SONOS_IP=<sonos_speaker_ip>                 # e.g. 192.0.2.20
 
 # HTTP server for Sonos to fetch audio (must be reachable by Sonos)
-ARIA_HTTP_BASE_URL=http://<aria_server_ip>:8000  # e.g. http://192.168.100.100:8000
+ARIA_HTTP_BASE_URL=http://<aria_server_ip>:8000  # e.g. http://192.0.2.10:8000
 
 # Caching
 ARIA_TTS_CACHE_DIR=/tmp/aria_tts_cache
