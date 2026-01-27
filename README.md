@@ -7,7 +7,9 @@ Aria is a **local-first voice assistant stack** built around a FastAPI server th
 - generates **TTS** (Piper),
 - and can **play TTS on Sonos** via **HTTP streaming** (SoCo / `play_uri`).
 
-> Current repo baseline: the server accepts **16kHz mono PCM16LE** audio over WebSocket and prints transcripts server-side. citeturn7view2
+> Current repo baseline: the server accepts **16kHz mono PCM16LE** audio over WebSocket and prints transcripts server-side.
+
+> **Docs scope**: This README is the user guide for running and configuring Aria.
 
 
 ## High-level architecture
@@ -32,7 +34,7 @@ Notes:
 
 ## Quickstart (dev: server + macOS client)
 
-The existing README documents the baseline dev flow (venv → install → run server → run mic streamer). citeturn7view2
+This quickstart covers the baseline dev flow (venv → install → run server → run mic streamer).
 
 ### Create venv + install
 
@@ -47,7 +49,7 @@ python -m pip install -r client/macos/requirements.txt
 
 ### Configure models
 
-Model files are not bundled; set `ARIA_MODELS_DIR`. citeturn7view2
+Model files are not bundled; set `ARIA_MODELS_DIR`.
 
 ```bash
 export ARIA_MODELS_DIR=/opt/aria/models
@@ -56,38 +58,59 @@ export ARIA_MODELS_DIR=/opt/aria/models
 ### Run
 
 ```bash
+# Start server (copy start.sh.example to start.sh and customize with your IPs)
+cp start.sh.example start.sh
+# Edit start.sh with your configuration, then:
+bash start.sh
+
+# Or run server directly with minimal config:
 python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+# Start client (from another terminal)
 python client/macos/mic_stream.py ws://<server-ip>:8000/ws/asr
 ```
 
+> **Note**: For full configuration with LLM and TTS, use the provided `.example` scripts. Copy them (e.g., `cp start.sh.example start.sh`) and customize with your real IPs. The actual scripts are gitignored to prevent committing sensitive information.
+
 ## Sonos: HTTP TTS streaming
 
-Sonos can play a URL. Generate audio on the server and expose it via HTTP (FastAPI route),
-then ask Sonos to play it:
+Aria generates TTS audio on the server and serves it over HTTP for Sonos to fetch.
 
+Example manual trigger:
 ```python
 from soco import SoCo
 
-SONOS_IP = "10.1.1.222"
-SERVER_IP = "10.1.1.100"
+SONOS_IP = "192.168.1.100"
+SERVER_IP = "192.168.1.50"
 
-url = f"http://{SERVER_IP}:9000/tts.wav?text=hello%20sonos&volume=0.30"
+# Aria serves normalized audio at /tts/<cache_key>.wav
+url = f"http://{SERVER_IP}:8000/tts/<key>.wav"
 SoCo(SONOS_IP).play_uri(url)
 ```
 
+When `ARIA_TTS_ENABLED=1`, LLM responses are automatically spoken to Sonos.
+
 ## Speaker identification (speaker ID)
 
-Goal: detect who is speaking for each finalized VAD segment; optionally drop “self speech”.
-Recommended:
-- enrollment tools remain separate (sandbox),
-- server loads JSON embedding profiles,
-- recognition runs before calling the LLM,
-- allow multiple profiles per user (e.g. `seb_fr`, `seb_en`).
+Aria includes optional speaker recognition to identify who is speaking and suppress self-speech (TTS feedback).
 
-Suggested env vars:
-- `ARIA_SPK_PROFILES_DIR=/var/aria/profiles`
-- `ARIA_SPK_THRESHOLD_DEFAULT=0.65`
-- `ARIA_SPK_SELF_NAMES=aria_fr,aria_en`
+Features:
+- Runs on in-memory finalized VAD segments (no WAV files in hot path)
+- Language-specific profiles (e.g., `alice_fr`, `alice_en`, `aria_fr`, `aria_en`)
+- Self-speech suppression before LLM processing
+- Echo Guard v2 remains active as a safety backstop
+
+Configuration:
+```bash
+export ARIA_SPK_ENABLED=1
+export ARIA_SPK_PROFILES_DIR=/var/aria/profiles
+export ARIA_SPK_SELF_NAMES=aria_fr,aria_en
+export ARIA_SPK_THRESHOLD_DEFAULT=0.65
+export ARIA_SPK_SELF_MIN_SCORE=0.75
+```
+
+Enrollment tools (recording samples and generating profiles) are kept separate.
+See [`docs/install_speaker_recognition.md`](docs/install_speaker_recognition.md) for setup details.
 
 ## Configuration
 
@@ -99,15 +122,19 @@ their defaults, and behavior is maintained here:
 ➡️ **[`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md)**
 
 This includes configuration for:
-- audio input and VAD
-- ASR
-- speaker recognition
+- audio input and VAD (client and server)
+- ASR (quality controls, filler detection)
+- speaker recognition (self-speech suppression)
 - echo suppression (Echo Guard v2)
-- LLM integration
-- TTS and Sonos output
+- LLM integration (Ollama and llama.cpp support)
+- TTS (Piper, multi-language voice selection, chunking)
+- Sonos output (HTTP streaming)
 - debug and development options
 
-If a variable is not documented there, it should be considered unsupported.
+For tuning VAD sensitivity and reducing false triggers, see:
+➡️ **[`docs/tuning.md`](docs/tuning.md)**
+
+If a variable is not documented in ENVIRONMENT.md, it should be considered unsupported.
 
 ## Troubleshooting
 
@@ -119,3 +146,13 @@ If a variable is not documented there, it should be considered unsupported.
 ### No audio
 - Check mute and volume.
 - Confirm Sonos can fetch the URL from its network segment.
+
+## Roadmap (directional)
+
+- Graduate speaker recognition to the primary feedback-loop guard and keep Echo Guard v2 purely as a fallback.
+- Expand local “skills” (home automation hooks, local vector DB/context cache, file lookups).
+- Add lightweight observability (latency budget per stage: VAD, ASR, LLM, TTS, Sonos fetch).
+
+## For contributors
+
+- Copilot build/spec instructions: [.copilot-instructions.md](.copilot-instructions.md)

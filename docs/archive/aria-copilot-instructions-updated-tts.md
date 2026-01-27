@@ -1,3 +1,8 @@
+> **ARCHIVED / OBSOLETE**
+>
+> This file is kept for historical reference only and may conflict with current project behavior.
+> Use **[.copilot-instructions.md](../../.copilot-instructions.md)** as the single authoritative specification.
+
 # ARIA Copilot Instructions — ASR, LLM, and Local TTS (Sonos)
 
 Use the instructions defined in `$HOME/dev/aria/.copilot-instructions.md` as the authoritative project specification.

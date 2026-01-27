@@ -39,9 +39,36 @@ models/*/
 # Audio files (temporary test files)
 *.wav
 *.WAV
+*.mp3
+*.flac
+*.ogg
 
-# Speaker profiles and recordings
+# Speaker profiles and recordings (CONTAINS PII - NEVER COMMIT)
 samples/
 profiles/
+**/profiles/
+*.speaker.json
+
+# Configuration files (may contain real IPs, secrets, PII)
+.env
+.env.local
+.env.production
+*.secret
+*.secrets
+config.local.*
+
+# Operational scripts with real IPs/config (DO NOT COMMIT - use .example versions)
+start.sh
+client_start.sh
+sync.sh
+
+# TTS cache
+/tmp/aria_tts_cache/
+aria_tts_cache/
+**/aria_tts_cache/
+
+# Logs (may contain PII or sensitive data)
+*.log
+logs/
 
 **/**.old

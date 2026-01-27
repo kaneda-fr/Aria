@@ -1,0 +1,1 @@
+rsync -avz --delete --exclude '.git/' --exclude '.venv/' --exclude '__pycache__/' --exclude '*.pyc' ~/dev/aria/ remote-server:/data/aria/dev/

@@ -1,3 +1,7 @@
+> **ARCHIVED / OBSOLETE**
+>
+> This file describes an experimental tools/Jeedom design that is not the current repo baseline.
+> Use **[.copilot-instructions.md](../../.copilot-instructions.md)** as the single authoritative specification.
 
 # ARIA — Conversational AI + Tool Execution (Local, Xeon)  
 Copilot Implementation Instructions
