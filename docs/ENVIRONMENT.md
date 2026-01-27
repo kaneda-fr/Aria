@@ -145,7 +145,7 @@ Unset variables use the documented defaults.
 |----------|---------|-------------|
 | ARIA_TTS_SINK | sonos_http | Audio sink type (currently only sonos_http) |
 | ARIA_SONOS_IP | (required) | Sonos speaker IP address |
-| ARIA_HTTP_BASE_URL | (required) | Base URL for HTTP audio serving (e.g., http://192.168.100.100:8000) |
+| ARIA_HTTP_BASE_URL | (required) | Base URL for HTTP audio serving (e.g., http://192.0.2.10:8000) |
 
 ---
 

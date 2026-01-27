@@ -11,4 +11,4 @@ ARIA_CLIENT_VAD_START_FRAMES=3 \
 ARIA_CLIENT_VAD_SNR_DB=8 \
 ARIA_CLIENT_VAD_MIN_RMS=0.005 \
 ARIA_CLIENT_VAD_SILENCE_MS=400 \
-python client/macos/mic_stream.py ws://192.168.1.50:8000/ws/asr
+python client/macos/mic_stream.py ws://192.0.2.10:8000/ws/asr

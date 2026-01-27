@@ -184,7 +184,7 @@ class SpeechOutput:
 
         base_url = os.environ.get("ARIA_HTTP_BASE_URL", "").strip().rstrip("/")
         if not base_url:
-            raise ValueError("ARIA_HTTP_BASE_URL must be set (e.g. http://192.168.100.100:8000)")
+            raise ValueError("ARIA_HTTP_BASE_URL must be set (e.g. http://192.0.2.10:8000)")
         self._base_url = base_url
 
         self._volume_default = float(os.environ.get("ARIA_TTS_VOLUME_DEFAULT", "0.3") or "0.3")

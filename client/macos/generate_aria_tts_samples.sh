@@ -5,7 +5,7 @@ set -e
 
 python aria_tts_sonos_record.py \
   --voices en=voices/en_US-amy-low.onnx,fr=voices/fr_FR-siwis-low.onnx \
-  --sonos-ip 192.168.100.222 \
+  --sonos-ip 192.0.2.20 \
   --out samples \
   --normalize \
   --texts 'en=Hello, my name is ARIA.;fr=Bonjour, je m appelle ARIA.'

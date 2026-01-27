@@ -223,11 +223,11 @@ ARIA_TTS_MIN_CHUNK_CHARS=60
 ARIA_TTS_SINK=sonos_http
 
 # Sonos control
-ARIA_SONOS_IP=<sonos_speaker_ip>                 # e.g. 192.168.100.222
+ARIA_SONOS_IP=<sonos_speaker_ip>                 # e.g. 192.0.2.20
 
 # HTTP server for Sonos to fetch audio (must be reachable by Sonos)
 # Single-server deployment: use the main API host/port.
-ARIA_HTTP_BASE_URL=http://<aria_server_ip>:8000  # e.g. http://192.168.100.100:8000
+ARIA_HTTP_BASE_URL=http://<aria_server_ip>:8000  # e.g. http://192.0.2.10:8000
 
 # Caching
 ARIA_TTS_CACHE_DIR=/tmp/aria_tts_cache

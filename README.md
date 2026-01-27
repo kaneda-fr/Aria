@@ -80,8 +80,8 @@ Example manual trigger:
 ```python
 from soco import SoCo
 
-SONOS_IP = "192.168.1.100"
-SERVER_IP = "192.168.1.50"
+SONOS_IP = "192.0.2.20"   # example Sonos IP (documentation-only)
+SERVER_IP = "192.0.2.10"  # example Aria server IP (documentation-only)
 
 # Aria serves normalized audio at /tts/<cache_key>.wav
 url = f"http://{SERVER_IP}:8000/tts/<key>.wav"
