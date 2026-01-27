@@ -7,6 +7,15 @@ Unset variables use the documented defaults.
 
 ---
 
+## Server Runtime
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| ARIA_HOST | 0.0.0.0 | Bind host for the API server |
+| ARIA_PORT | 8000 | Bind port for the API server |
+| ARIA_WORKERS | 1 | Number of server workers (processes) |
+| ARIA_LOG_LEVEL | info | Log level for the server (uvicorn) |
+
 ## Models & Paths
 
 | Variable | Default | Description |
@@ -74,6 +83,7 @@ Unset variables use the documented defaults.
 | ARIA_SPK_SELF_NAMES | aria_fr,aria_en | Comma-separated self identity names |
 | ARIA_SPK_TIMEOUT_SEC | 1.0 | Recognition timeout |
 | ARIA_SPK_HOT_RELOAD | 0 | Hot reload profiles on change |
+| ARIA_SPK_DEBUG | 0 | Enable speaker recognition debug logging |
 | ARIA_SPK_DEBUG_DUMP_WAV | 0 | Dump audio segments for debugging |
 
 ---
@@ -89,6 +99,26 @@ Unset variables use the documented defaults.
 | ARIA_ECHO_V2_CONTAINMENT_THRESHOLD | 0.65 | Token containment threshold (0-1) |
 | ARIA_ECHO_V2_FUZZY_THRESHOLD | 0.75 | Fuzzy similarity threshold (0-1) |
 | ARIA_ECHO_V2_ALLOWLIST_REGEX | (empty) | Regex for interrupt/bypass words |
+
+---
+
+## Echo Guard (Legacy v1)
+
+Aria still supports a legacy text-level echo suppression mechanism (v1).
+Prefer **Echo Guard v2** unless you specifically need v1 tuning.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| ARIA_ECHO_GUARD_ENABLED | 1 | Enable legacy echo guard |
+| ARIA_ECHO_GUARD_WINDOW_SEC | 15.0 | Time window (seconds) to compare against recent TTS |
+| ARIA_ECHO_GUARD_MIN_CHARS | 25 | Minimum characters in transcript to evaluate |
+| ARIA_ECHO_GUARD_MIN_WORDS | 6 | Minimum words in transcript to evaluate |
+| ARIA_ECHO_GUARD_SEQ_THRESHOLD | 0.85 | Sequence similarity threshold (0–1) |
+| ARIA_ECHO_GUARD_JACC_THRESHOLD | 0.70 | Jaccard similarity threshold (0–1) |
+| ARIA_ECHO_GUARD_PARTIAL_THRESHOLD | 0.78 | Partial match threshold (0–1) |
+| ARIA_ECHO_GUARD_OVERLAP_THRESHOLD | 0.60 | Word overlap threshold (0–1) |
+| ARIA_ECHO_GUARD_SPEAKING_GRACE_SEC | 6.0 | Grace period while speaking (seconds) |
+| ARIA_ECHO_GUARD_STRICT_WHILE_SPEAKING | 1 | Strict suppression during speaking |
 
 ---
 
