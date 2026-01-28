@@ -174,7 +174,9 @@ Prefer **Echo Guard v2** unless you specifically need v1 tuning.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | ARIA_TTS_SINK | sonos_http | Audio sink type (currently only sonos_http) |
-| ARIA_SONOS_IP | (required) | Sonos speaker IP address |
+| ARIA_SONOS_IP | (optional) | Override Sonos speaker IP (discovery used when unset) |
+| ARIA_SONOS_NAME | (empty) | Friendly Sonos name to target during discovery (e.g., "Living Room") |
+| ARIA_SONOS_DISCOVERY_TIMEOUT | 5.0 | Seconds to wait while discovering speakers via SoCo |
 | ARIA_HTTP_BASE_URL | (required) | Base URL for HTTP audio serving (e.g., http://192.0.2.10:8000) |
 
 ---

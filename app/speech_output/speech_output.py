@@ -13,7 +13,12 @@ from pathlib import Path
 from typing import Optional
 
 from app.aria_logging import get_logger
-from app.audio_sink.sonos_http_sink import SonosHttpSink
+from app.audio_sink.sonos_http_sink import (
+    SonosDiscoveryError,
+    SonosHttpSink,
+    discover_sonos_ip,
+    verify_sonos_reachable,
+)
 from app.speech_output.echo_guard_v2 import EchoGuardV2
 from app.tts.audio_normalizer import normalize_for_sonos
 from app.tts.text_chunker import ChunkingConfig, chunk_text
@@ -176,11 +181,31 @@ class SpeechOutput:
         if sink != "sonos_http":
             raise ValueError(f"Unsupported ARIA_TTS_SINK={sink!r}")
 
+        discovery_timeout_raw = os.environ.get("ARIA_SONOS_DISCOVERY_TIMEOUT", "5.0") or "5.0"
+        try:
+            discovery_timeout = float(discovery_timeout_raw)
+        except ValueError:
+            discovery_timeout = 5.0
+
+        sonos_name = os.environ.get("ARIA_SONOS_NAME", "").strip() or None
+
         sonos_ip = os.environ.get("ARIA_SONOS_IP", "").strip()
         if not sonos_ip:
-            raise ValueError("ARIA_SONOS_IP must be set when ARIA_TTS_SINK=sonos_http")
+            try:
+                sonos_ip = discover_sonos_ip(preferred_name=sonos_name, timeout=discovery_timeout)
+            except SonosDiscoveryError as exc:
+                raise ValueError(str(exc)) from exc
+
+        try:
+            speaker_name = verify_sonos_reachable(sonos_ip, timeout=discovery_timeout)
+        except SonosDiscoveryError as exc:
+            raise ValueError(str(exc)) from exc
 
         self._sink = SonosHttpSink(speaker_ip=sonos_ip)
+        log.info(
+            "ARIA.TTS.SonosConfigured",
+            extra={"fields": {"ip": sonos_ip, "name": speaker_name or (sonos_name or "<unknown>")}},
+        )
 
         base_url = os.environ.get("ARIA_HTTP_BASE_URL", "").strip().rstrip("/")
         if not base_url:
@@ -318,7 +343,11 @@ class SpeechOutput:
                 except asyncio.CancelledError:
                     raise
                 except Exception as e:
-                    log.info("ARIA.TTS.Error", extra={"fields": {"error": repr(e)}})
+                    log.warning(
+                        "ARIA.TTS.Error",
+                        extra={"fields": {"error": repr(e)}},
+                        exc_info=True,
+                    )
                     return
         finally:
             if self.echo_guard is not None:
