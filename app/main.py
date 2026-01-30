@@ -22,6 +22,9 @@ from app.audio.ringbuffer import RingBuffer
 from app.audio.vad import VadConfig, VoiceActivityDetector
 from app.http_audio.server import build_tts_router
 from app.llm.ollama_client import SYSTEM_PROMPT, generate_llm_response, llm_enabled, load_llm_config
+from app.plugins.registry import PluginRegistry
+from app.plugins.inventory import InventoryProvider
+from app.plugins.actions import ActionsProvider
 from app.speaker_recognition.recognizer import SpeakerRecognizer
 from app.speech_output.echo_guard_v2 import EchoGuardV2
 from app.speech_output.speech_output import maybe_build_speech_output
@@ -203,7 +206,72 @@ async def lifespan(app: FastAPI):
         app.state.tts_cache_dir = None
         log.info("ARIA.TTS.NotEnabled", extra={"fields": {"error": repr(e)}})
 
+    # Plugin System (optional, enabled via env)
+    app.state.plugin_registry = PluginRegistry()
+    try:
+        plugins_enabled = os.environ.get("ARIA_PLUGINS_ENABLED", "0").strip().lower() in {"1", "true", "yes", "on"}
+        if plugins_enabled:
+            # Register plugin classes
+            app.state.plugin_registry.register_plugin_class("inventory", InventoryProvider)
+            app.state.plugin_registry.register_plugin_class("actions", ActionsProvider)
+
+            # Initialize Inventory Provider if enabled
+            inventory_enabled = os.environ.get("ARIA_INVENTORY_ENABLED", "0").strip().lower() in {"1", "true", "yes", "on"}
+            if inventory_enabled:
+                # Build inventory config from env
+                inventory_config = {
+                    "cache_path": os.environ.get("ARIA_INVENTORY_CACHE_PATH", "/tmp/aria_inventory.json"),
+                    "sources": {
+                        "jeedom": {
+                            "type": "jeedom_mqtt",
+                            "host": os.environ.get("ARIA_JEEDOM_MQTT_HOST", "localhost"),
+                            "port": int(os.environ.get("ARIA_JEEDOM_MQTT_PORT", "1883")),
+                            "username": os.environ.get("ARIA_JEEDOM_MQTT_USERNAME"),
+                            "password": os.environ.get("ARIA_JEEDOM_MQTT_PASSWORD"),
+                            "root_topic": os.environ.get("ARIA_JEEDOM_MQTT_ROOT_TOPIC", "jeedom"),
+                            "qos": int(os.environ.get("ARIA_MQTT_QOS_SUBSCRIBE", "1")),
+                        }
+                    }
+                }
+
+                # Create and start inventory provider
+                app.state.plugin_registry.create_plugin("inventory", inventory_config)
+
+            # Initialize Actions Provider if enabled
+            actions_enabled = os.environ.get("ARIA_ACTIONS_ENABLED", "0").strip().lower() in {"1", "true", "yes", "on"}
+            if actions_enabled:
+                # Build actions config from env (shares MQTT config with inventory)
+                actions_config = {
+                    "host": os.environ.get("ARIA_JEEDOM_MQTT_HOST", "localhost"),
+                    "port": int(os.environ.get("ARIA_JEEDOM_MQTT_PORT", "1883")),
+                    "username": os.environ.get("ARIA_JEEDOM_MQTT_USERNAME"),
+                    "password": os.environ.get("ARIA_JEEDOM_MQTT_PASSWORD"),
+                    "root_topic": os.environ.get("ARIA_JEEDOM_MQTT_ROOT_TOPIC", "jeedom"),
+                    "qos": int(os.environ.get("ARIA_MQTT_QOS_PUBLISH", "1")),
+                }
+
+                # Create and start actions provider
+                app.state.plugin_registry.create_plugin("actions", actions_config)
+
+            log.info("ARIA.Plugins.Enabled", extra={"fields": {"plugin_count": app.state.plugin_registry.plugin_count}})
+            # Start all registered plugins
+            app.state.plugin_registry.start_all()
+        else:
+            log.info("ARIA.Plugins.Disabled", extra={"fields": {}})
+    except Exception as e:
+        log.info("ARIA.Plugins.NotEnabled", extra={"fields": {"error": repr(e)}})
+
     yield
+
+    # Cleanup: Stop plugins first (before other resources)
+    plugin_registry = getattr(app.state, "plugin_registry", None)
+    if plugin_registry is not None:
+        try:
+            log.info("ARIA.Plugins.Stopping")
+            plugin_registry.stop_all()
+            log.info("ARIA.Plugins.Stopped")
+        except Exception as e:
+            log.error("ARIA.Plugins.StopError", extra={"fields": {"error": repr(e)}})
 
     worker = getattr(app.state, "llm_worker_task", None)
     if worker is not None:
@@ -233,11 +301,369 @@ except Exception:
 @app.get("/healthz")
 async def healthz() -> dict[str, Any]:
     asr_loaded = getattr(app.state, "asr", None) is not None
-    return {
+
+    # Get plugin health if registry exists
+    plugin_health = None
+    plugin_registry = getattr(app.state, "plugin_registry", None)
+    if plugin_registry is not None and plugin_registry.plugin_count > 0:
+        plugin_health = plugin_registry.health_all()
+
+    response = {
         "status": "ok",
         "asr_loaded": asr_loaded,
         "asr_error": getattr(app.state, "asr_error", None),
     }
+
+    if plugin_health is not None:
+        response["plugins"] = plugin_health
+
+    return response
+
+
+@app.get("/api/inventory/snapshot")
+async def get_inventory_snapshot() -> dict[str, Any]:
+    """Get complete inventory snapshot."""
+    from fastapi import HTTPException
+    from app.plugins.tooling_provider import ToolingProvider
+
+    plugin_registry = getattr(app.state, "plugin_registry", None)
+    if plugin_registry is None:
+        raise HTTPException(status_code=503, detail="Plugin system not enabled")
+
+    # Get inventory provider
+    providers = plugin_registry.get_plugins_by_type(ToolingProvider)
+    inventory = next((p for p in providers if p.name == "inventory"), None)
+
+    if inventory is None:
+        raise HTTPException(status_code=503, detail="Inventory provider not available")
+
+    if not inventory.is_started:
+        raise HTTPException(status_code=503, detail="Inventory provider not started")
+
+    return inventory.get_snapshot()
+
+
+@app.post("/api/inventory/candidates")
+async def get_inventory_candidates(request: dict[str, Any]) -> dict[str, Any]:
+    """
+    Get command candidates matching user input.
+
+    Request body:
+        {
+            "text": str,              # Required: User input text
+            "context": dict | None    # Optional: Context (room, speaker, etc.)
+        }
+    """
+    from fastapi import HTTPException
+    from app.plugins.tooling_provider import ToolingProvider
+
+    plugin_registry = getattr(app.state, "plugin_registry", None)
+    if plugin_registry is None:
+        raise HTTPException(status_code=503, detail="Plugin system not enabled")
+
+    # Get inventory provider
+    providers = plugin_registry.get_plugins_by_type(ToolingProvider)
+    inventory = next((p for p in providers if p.name == "inventory"), None)
+
+    if inventory is None:
+        raise HTTPException(status_code=503, detail="Inventory provider not available")
+
+    if not inventory.is_started:
+        raise HTTPException(status_code=503, detail="Inventory provider not started")
+
+    # Extract parameters
+    text = request.get("text")
+    if not text or not isinstance(text, str):
+        raise HTTPException(status_code=400, detail="Missing or invalid 'text' parameter")
+
+    context = request.get("context")
+    if context is not None and not isinstance(context, dict):
+        raise HTTPException(status_code=400, detail="Invalid 'context' parameter (must be dict)")
+
+    return inventory.get_candidates(text=text, context=context)
+
+
+@app.post("/api/actions/execute")
+async def execute_action(request: dict[str, Any]) -> dict[str, Any]:
+    """
+    Execute a command on a device.
+
+    Request body:
+        {
+            "cmd_id": str,         # Required: Command ID to execute
+            "value": any | None    # Optional: Value for the command (e.g., 50 for dimmer)
+        }
+    """
+    from fastapi import HTTPException
+    from app.plugins.tooling_provider import ToolingProvider
+    from app.plugins.actions import ActionsProvider
+
+    plugin_registry = getattr(app.state, "plugin_registry", None)
+    if plugin_registry is None:
+        raise HTTPException(status_code=503, detail="Plugin system not enabled")
+
+    # Get actions provider
+    actions = plugin_registry.get_plugin("actions")
+    if actions is None or not isinstance(actions, ActionsProvider):
+        raise HTTPException(status_code=503, detail="Actions provider not available")
+
+    if not actions.is_started:
+        raise HTTPException(status_code=503, detail="Actions provider not started")
+
+    # Extract parameters
+    cmd_id = request.get("cmd_id")
+    if not cmd_id or not isinstance(cmd_id, str):
+        raise HTTPException(status_code=400, detail="Missing or invalid 'cmd_id' parameter")
+
+    value = request.get("value")
+
+    # Get execution spec from inventory (optional)
+    execution_spec = None
+    providers = plugin_registry.get_plugins_by_type(ToolingProvider)
+    inventory = next((p for p in providers if p.name == "inventory"), None)
+    if inventory and inventory.is_started:
+        # Lookup command in inventory to get execution spec
+        cmd = inventory.indexer.get_command(cmd_id)
+        if cmd and cmd.execution:
+            execution_spec = cmd.execution
+
+    # Execute command
+    result = actions.execute_command(cmd_id=cmd_id, value=value, execution_spec=execution_spec)
+    return result
+
+
+@app.post("/api/llm/process")
+async def process_text(request: dict[str, Any]) -> dict[str, Any]:
+    """
+    Process text through the LLM pipeline (bypassing ASR) with tool calling.
+
+    Request body:
+        {
+            "text": str,                    # Required: Text to process
+            "session_id": str | None,       # Optional: Session ID for history
+            "speaker_user": str | None,     # Optional: Speaker identifier (default: "unknown")
+            "speak_response": bool,         # Optional: Speak response via TTS (default: false)
+            "use_tools": bool               # Optional: Enable tool calling (default: true)
+        }
+
+    Response:
+        {
+            "success": bool,
+            "text": str,                    # Input text
+            "response": str,                # LLM response
+            "error": str | None,
+            "spoken": bool,                 # Whether response was spoken via TTS
+            "tool_calls_made": int          # Number of tool calls executed
+        }
+    """
+    from fastapi import HTTPException
+    from app.llm.tools import TOOLS, execute_tool, format_tool_result_for_llm
+    from app.plugins.tooling_provider import ToolingProvider
+    from app.plugins.actions import ActionsProvider
+
+    # Extract parameters
+    text = request.get("text")
+    if not text or not isinstance(text, str):
+        raise HTTPException(status_code=400, detail="Missing or invalid 'text' parameter")
+
+    text = text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Text cannot be empty")
+
+    session_id = request.get("session_id")
+    speaker_user = request.get("speaker_user", "unknown")
+    speak_response = request.get("speak_response", False)
+    use_tools = request.get("use_tools", True)
+
+    # Check if LLM is enabled
+    llm_config = getattr(app.state, "llm_config", None)
+    llm_client = getattr(app.state, "llm_client", None)
+
+    if not llm_config or not llm_client:
+        raise HTTPException(status_code=503, detail="LLM not enabled")
+
+    # Get plugin providers for tools
+    plugin_registry = getattr(app.state, "plugin_registry", None)
+    inventory_provider = None
+    actions_provider = None
+
+    if use_tools and plugin_registry:
+        providers = plugin_registry.get_plugins_by_type(ToolingProvider)
+        inventory_provider = next((p for p in providers if p.name == "inventory"), None)
+        actions_provider = plugin_registry.get_plugin("actions")
+
+    try:
+        # Build messages with optional history
+        history_max = _llm_history_max_messages()
+        messages: list[dict[str, Any]] = []
+
+        if history_max > 0 and session_id:
+            history_lock = getattr(app.state, "llm_history_lock", None)
+            history_map = getattr(app.state, "llm_history", None)
+            if history_lock is not None and isinstance(history_map, dict):
+                async with history_lock:
+                    history = history_map.get(session_id)
+                    if history:
+                        messages = [{"role": "system", "content": SYSTEM_PROMPT}, *list(history)]
+
+        if not messages:
+            messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+
+        user_content = f"[speaker={speaker_user}] {text}"
+        messages.append({"role": "user", "content": user_content})
+
+        # Tool calling loop
+        tool_calls_made = 0
+        max_iterations = 5
+        t0 = time.monotonic()
+        final_response = ""
+
+        for iteration in range(max_iterations):
+            # Generate LLM response with tools
+            llm_result = await generate_llm_response(
+                text=text,
+                messages=messages,
+                config=llm_config,
+                client=llm_client,
+                tools=TOOLS if use_tools else None,
+            )
+
+            response_content = llm_result.get("content", "")
+            tool_calls = llm_result.get("tool_calls")
+
+            # If no tool calls, we have the final response
+            if not tool_calls:
+                final_response = response_content
+                break
+
+            # Add assistant message with tool calls
+            messages.append({
+                "role": "assistant",
+                "content": response_content or "",
+                "tool_calls": tool_calls
+            })
+
+            # Execute each tool call
+            for tool_call in tool_calls:
+                tool_calls_made += 1
+
+                # Extract tool call details
+                function = tool_call.get("function", {})
+                tool_name = function.get("name", "")
+                tool_args_raw = function.get("arguments", {})
+
+                # Handle both Ollama (dict) and OpenAI (string) formats
+                if isinstance(tool_args_raw, dict):
+                    tool_args = tool_args_raw
+                elif isinstance(tool_args_raw, str):
+                    try:
+                        tool_args = json.loads(tool_args_raw)
+                    except json.JSONDecodeError:
+                        tool_args = {}
+                else:
+                    tool_args = {}
+
+                # Execute tool
+                tool_result = await execute_tool(
+                    tool_name=tool_name,
+                    tool_args=tool_args,
+                    inventory_provider=inventory_provider,
+                    actions_provider=actions_provider
+                )
+
+                # Format result for LLM
+                tool_result_text = format_tool_result_for_llm(tool_result)
+
+                # Add tool result to messages
+                messages.append({
+                    "role": "tool",
+                    "content": tool_result_text,
+                    "name": tool_name
+                })
+
+        dt_ms = int((time.monotonic() - t0) * 1000)
+
+        # Check if we got a response
+        if not final_response and iteration >= max_iterations - 1:
+            log.warning(
+                "ARIA.LLM.MaxIterationsReached",
+                extra={"fields": {"ms": dt_ms, "iterations": max_iterations, "tool_calls_made": tool_calls_made}}
+            )
+            return {
+                "success": False,
+                "text": text,
+                "response": "I tried to help but ran into too many steps. Please try again.",
+                "error": "Max tool calling iterations reached",
+                "spoken": False,
+                "tool_calls_made": tool_calls_made
+            }
+
+        if not final_response:
+            log.info(
+                "ARIA.LLM.EmptyResponse",
+                extra={"fields": {"ms": dt_ms, "transcript_len": len(text), "source": "api", "tool_calls_made": tool_calls_made}}
+            )
+            return {
+                "success": False,
+                "text": text,
+                "response": "",
+                "error": "Empty response from LLM",
+                "spoken": False,
+                "tool_calls_made": tool_calls_made
+            }
+
+        log.info(
+            "ARIA.LLM.Done",
+            extra={
+                "fields": {
+                    "ms": dt_ms,
+                    "transcript_len": len(text),
+                    "response_len": len(final_response),
+                    "tool_calls_made": tool_calls_made,
+                    "source": "api"
+                }
+            },
+        )
+
+        # Update history if session_id provided
+        if history_max > 0 and session_id:
+            history_lock = getattr(app.state, "llm_history_lock", None)
+            history_map = getattr(app.state, "llm_history", None)
+            if history_lock is not None and isinstance(history_map, dict):
+                async with history_lock:
+                    history = history_map.get(session_id)
+                    if history is None or getattr(history, "maxlen", None) != history_max:
+                        history = deque(list(history or []), maxlen=history_max)
+                        history_map[session_id] = history
+                    history.append({"role": "user", "content": user_content})
+                    history.append({"role": "assistant", "content": final_response})
+
+        # Optional TTS
+        spoken = False
+        if speak_response:
+            speech = getattr(app.state, "speech_output", None)
+            if speech is not None:
+                try:
+                    await speech.speak(final_response)
+                    spoken = True
+                except Exception as e:
+                    log.info("ARIA.TTS.Error", extra={"fields": {"error": repr(e)}})
+
+        return {
+            "success": True,
+            "text": text,
+            "response": final_response,
+            "error": None,
+            "spoken": spoken,
+            "tool_calls_made": tool_calls_made
+        }
+
+    except Exception as e:
+        log.error(
+            "ARIA.LLM.Error",
+            extra={"fields": {"error": repr(e), "transcript_len": len(text), "source": "api"}},
+        )
+        raise HTTPException(status_code=500, detail=f"LLM processing error: {str(e)}")
 
 
 @app.websocket("/ws/asr")
@@ -722,12 +1148,19 @@ async def _llm_worker(app: FastAPI) -> None:
             messages.append({"role": "user", "content": user_content})
 
             t0 = time.monotonic()
-            response = await generate_llm_response(
+            llm_result = await generate_llm_response(
                 text=transcript,
                 messages=messages,
                 config=config,
                 client=client,
             )
+
+            # Handle both old (str) and new (dict) return formats
+            if isinstance(llm_result, dict):
+                response = llm_result.get("content", "")
+            else:
+                response = llm_result if isinstance(llm_result, str) else ""
+
             dt_ms = int((time.monotonic() - t0) * 1000)
             if response:
                 print(f"ARIA.LLM: {response}", flush=True)

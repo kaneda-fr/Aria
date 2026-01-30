@@ -14,7 +14,10 @@ except ImportError:  # pragma: no cover
 
 SYSTEM_PROMPT = os.environ.get(
     "ARIA_LLM_SYSTEM_PROMPT",
-    "You are ARIA, a local assistant running on a private server. Answer in 1-2 sentences. Be concise and direct.",
+    "You are ARIA, a home automation assistant. When users request to control devices (lights, shutters, etc.), you MUST:\n"
+    "1. Use find_devices to search for matching devices\n"
+    "2. Use execute_command to control them\n"
+    "Never claim to control devices without actually calling these tools. Always use tools for device control.",
 )
 
 
@@ -137,22 +140,26 @@ async def generate_ollama_response(
     messages: list[dict[str, str]] | None = None,
     config: OllamaConfig,
     client: httpx.AsyncClient | None = None,
-) -> str:
-    """Send final transcript text to Ollama and return response text.
+    tools: list[dict[str, object]] | None = None,
+) -> dict[str, object]:
+    """Send final transcript text to Ollama and return response.
 
     Supports both streaming and non-streaming modes via config.stream.
     When streaming, logs each chunk as received and returns accumulated text.
+
+    Returns:
+        Dict with 'content' (str) and optionally 'tool_calls' (list)
     """
 
     if messages is None:
         if not text.strip():
-            return ""
+            return {"content": "", "tool_calls": None}
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": text.strip()},
         ]
 
-    async def _post(c: httpx.AsyncClient) -> str:
+    async def _post(c: httpx.AsyncClient) -> dict[str, object]:
         # Prefer /api/chat for system+user prompting.
         chat_url = f"{config.url}/api/chat"
         payload = {
@@ -160,6 +167,10 @@ async def generate_ollama_response(
             "stream": config.stream,
             "messages": messages,
         }
+
+        # Add tools if provided
+        if tools:
+            payload["tools"] = tools
 
         options: dict[str, object] = {}
         if config.num_predict is not None:
@@ -176,28 +187,40 @@ async def generate_ollama_response(
             r = await c.post(chat_url, json=payload)
             r.raise_for_status()
             data = r.json()
-            msg = (data.get("message") or {}).get("content")
-            if isinstance(msg, str):
-                return msg.strip()
-            return ""
+            message = data.get("message") or {}
+            content = message.get("content") or ""
+            tool_calls = message.get("tool_calls")
+
+            return {
+                "content": content.strip() if isinstance(content, str) else "",
+                "tool_calls": tool_calls
+            }
 
         # Streaming: parse newline-delimited JSON chunks
         async with c.stream("POST", chat_url, json=payload) as r:
             r.raise_for_status()
             accumulated = []
+            tool_calls = None
             async for line in r.aiter_lines():
                 line = line.strip()
                 if not line:
                     continue
                 try:
                     chunk = json.loads(line)
-                    delta = (chunk.get("message") or {}).get("content") or ""
+                    message = chunk.get("message") or {}
+                    delta = message.get("content") or ""
                     if delta:
                         accumulated.append(delta)
                         print(f"ARIA.LLM.Chunk: {delta}", flush=True)
+                    # Capture tool_calls from final chunk
+                    if message.get("tool_calls"):
+                        tool_calls = message.get("tool_calls")
                 except json.JSONDecodeError:
                     continue
-            return "".join(accumulated).strip()
+            return {
+                "content": "".join(accumulated).strip(),
+                "tool_calls": tool_calls
+            }
 
     if client is not None:
         return await _post(client)
@@ -213,12 +236,17 @@ async def generate_llamacpp_response(
     messages: list[dict[str, str]] | None = None,
     config: LlamaCppConfig,
     client: httpx.AsyncClient | None = None,
-) -> str:
-    """Send final transcript text to llama-cpp-python (OpenAI-compatible) and return response text."""
+    tools: list[dict[str, object]] | None = None,
+) -> dict[str, object]:
+    """Send final transcript text to llama-cpp-python (OpenAI-compatible) and return response.
+
+    Returns:
+        Dict with 'content' (str) and optionally 'tool_calls' (list)
+    """
 
     if messages is None:
         if not text.strip():
-            return ""
+            return {"content": "", "tool_calls": None}
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": text.strip()},
@@ -236,6 +264,11 @@ async def generate_llamacpp_response(
         "stream": config.stream,
         "messages": messages,
     }
+
+    # Add tools if provided (OpenAI format)
+    if tools:
+        payload["tools"] = tools
+
     if config.max_tokens is not None:
         payload["max_tokens"] = int(config.max_tokens)
     if config.temperature is not None:
@@ -243,22 +276,40 @@ async def generate_llamacpp_response(
     if config.top_p is not None:
         payload["top_p"] = float(config.top_p)
 
-    async def _post(c: httpx.AsyncClient) -> str:
+    async def _post(c: httpx.AsyncClient) -> dict[str, object]:
+        # Debug logging
+        import os
+        debug_enabled = os.environ.get("ARIA_DEBUG", "0").strip().lower() in {"1", "true", "yes", "on"}
+        if debug_enabled:
+            import json as json_lib
+            print(f"[DEBUG] Sending to llama.cpp: {json_lib.dumps(payload, indent=2)}", flush=True)
+
         if not config.stream:
             r = await c.post(url, json=payload)
             r.raise_for_status()
             data = r.json()
+
+            if debug_enabled:
+                import json as json_lib
+                print(f"[DEBUG] Received from llama.cpp: {json_lib.dumps(data, indent=2)}", flush=True)
+
             choices = data.get("choices")
             if not isinstance(choices, list) or not choices:
-                return ""
-            msg = (choices[0].get("message") or {}).get("content")
-            if isinstance(msg, str):
-                return msg.strip()
-            return ""
+                return {"content": "", "tool_calls": None}
+
+            message = choices[0].get("message") or {}
+            content = message.get("content") or ""
+            tool_calls = message.get("tool_calls")
+
+            return {
+                "content": content.strip() if isinstance(content, str) else "",
+                "tool_calls": tool_calls
+            }
 
         async with c.stream("POST", url, json=payload) as r:
             r.raise_for_status()
             accumulated: list[str] = []
+            tool_calls = None
             async for line in r.aiter_lines():
                 line = line.strip()
                 if not line or not line.startswith("data: "):
@@ -273,11 +324,18 @@ async def generate_llamacpp_response(
                 choices = chunk.get("choices")
                 if not isinstance(choices, list) or not choices:
                     continue
-                delta = (choices[0].get("delta") or {}).get("content") or ""
-                if delta:
-                    accumulated.append(delta)
-                    print(f"ARIA.LLM.Chunk: {delta}", flush=True)
-            return "".join(accumulated).strip()
+                delta = choices[0].get("delta") or {}
+                content_delta = delta.get("content") or ""
+                if content_delta:
+                    accumulated.append(content_delta)
+                    print(f"ARIA.LLM.Chunk: {content_delta}", flush=True)
+                # Capture tool_calls from delta
+                if delta.get("tool_calls"):
+                    tool_calls = delta.get("tool_calls")
+            return {
+                "content": "".join(accumulated).strip(),
+                "tool_calls": tool_calls
+            }
 
     if client is not None:
         return await _post(client)
@@ -293,7 +351,14 @@ async def generate_llm_response(
     messages: list[dict[str, str]] | None = None,
     config: OllamaConfig | LlamaCppConfig,
     client: httpx.AsyncClient | None = None,
-) -> str:
+    tools: list[dict[str, object]] | None = None,
+) -> dict[str, object]:
+    """
+    Generate LLM response with optional tool calling support.
+
+    Returns:
+        Dict with 'content' (str) and optionally 'tool_calls' (list)
+    """
     if isinstance(config, OllamaConfig):
-        return await generate_ollama_response(text=text, messages=messages, config=config, client=client)
-    return await generate_llamacpp_response(text=text, messages=messages, config=config, client=client)
+        return await generate_ollama_response(text=text, messages=messages, config=config, client=client, tools=tools)
+    return await generate_llamacpp_response(text=text, messages=messages, config=config, client=client, tools=tools)

@@ -19,6 +19,7 @@ dependencies = [
   "torchaudio @ https://download.pytorch.org/whl/cpu/torchaudio-2.3.1%2Bcpu-cp311-cp311-linux_x86_64.whl ; platform_system=='Linux' and platform_machine=='x86_64' and python_version=='3.11'",
   "torch; platform_system!='Linux' or platform_machine!='x86_64'",
   "torchaudio; platform_system!='Linux' or platform_machine!='x86_64'",
+  "paho-mqtt>=2.0.0"
 ]
 
 [project.scripts]
@@ -38,6 +39,10 @@ packages = [
   "app.http_audio",
   "app.audio_sink",
   "app.speech_output",
+  "app.plugins",
+  "app.plugins.inventory",
+  "app.plugins.inventory.sources",
+  "app.plugins.actions",
 ]
 
 [tool.uvicorn]
