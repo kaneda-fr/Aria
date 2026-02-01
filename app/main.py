@@ -267,21 +267,23 @@ async def lifespan(app: FastAPI):
     try:
         router_enabled = os.environ.get("ARIA_ROUTER_ENABLED", "0").strip().lower() in {"1", "true", "yes", "on"}
         if router_enabled:
-            model_name = os.environ.get(
-                "ARIA_ROUTER_MODEL",
-                "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-            )
+            # Per-language embedding models
+            model_name_en = os.environ.get("ARIA_ROUTER_MODEL_EN", "BAAI/bge-small-en-v1.5")
+            model_name_fr = os.environ.get("ARIA_ROUTER_MODEL_FR", "intfloat/multilingual-e5-small")
             control_threshold = float(os.environ.get("ARIA_ROUTER_CONTROL_THRESHOLD", "0.70"))
             chat_threshold = float(os.environ.get("ARIA_ROUTER_CHAT_THRESHOLD", "0.70"))
             unknown_threshold = float(os.environ.get("ARIA_ROUTER_UNKNOWN_THRESHOLD", "0.50"))
             use_seed_data = os.environ.get("ARIA_ROUTER_USE_SEED_DATA", "1").strip().lower() in {"1", "true", "yes", "on"}
+            lang_detect_method = os.environ.get("ARIA_ROUTER_LANG_DETECT", "heuristic")
 
             app.state.router = get_router(
-                model_name=model_name,
+                model_name_en=model_name_en,
+                model_name_fr=model_name_fr,
                 control_threshold=control_threshold,
                 chat_threshold=chat_threshold,
                 unknown_threshold=unknown_threshold,
-                use_seed_data=use_seed_data
+                use_seed_data=use_seed_data,
+                lang_detect_method=lang_detect_method
             )
 
             router_stats = app.state.router.get_stats()
@@ -289,11 +291,14 @@ async def lifespan(app: FastAPI):
                 "ARIA.Router.Enabled",
                 extra={
                     "fields": {
-                        "model": model_name,
+                        "model_en": model_name_en,
+                        "model_fr": model_name_fr,
                         "control_threshold": control_threshold,
                         "chat_threshold": chat_threshold,
                         "unknown_threshold": unknown_threshold,
-                        "centroid_distance": router_stats.get("centroid_distance"),
+                        "lang_detect_method": lang_detect_method,
+                        "centroid_distance_en": router_stats.get("centroid_distance_en"),
+                        "centroid_distance_fr": router_stats.get("centroid_distance_fr"),
                         "centroids_initialized": router_stats.get("centroids_initialized")
                     }
                 }
@@ -530,6 +535,7 @@ async def process_text(request: dict[str, Any]) -> dict[str, Any]:
                     "fields": {
                         "text": text[:50] + "..." if len(text) > 50 else text,
                         "mode": decision.mode,
+                        "detected_lang": decision.detected_lang,
                         "confidence": round(decision.confidence, 3),
                         "distance_to_control": round(decision.distance_to_control, 3),
                         "distance_to_chat": round(decision.distance_to_chat, 3),
@@ -1211,6 +1217,44 @@ async def _llm_worker(app: FastAPI) -> None:
         extra={"fields": {"url": getattr(config, "url", None), "model": getattr(config, "model", None)}},
     )
 
+    # Simple chat responses for router-classified CHAT messages
+    chat_responses = {
+        # Greetings (French)
+        "bonjour": "Bonjour! Comment puis-je vous aider?",
+        "bonsoir": "Bonsoir!",
+        "salut": "Salut!",
+        "bonne nuit": "Bonne nuit!",
+        "coucou": "Coucou!",
+        # Greetings (English)
+        "hello": "Hello! How can I help you?",
+        "hi": "Hi there!",
+        "hey": "Hey!",
+        "good morning": "Good morning!",
+        "good evening": "Good evening!",
+        "good night": "Good night!",
+        # Thanks (French)
+        "merci": "De rien!",
+        "merci beaucoup": "Je vous en prie!",
+        # Thanks (English)
+        "thank you": "You're welcome!",
+        "thanks": "You're welcome!",
+        # Time questions (French)
+        "quelle heure est-il": None,  # Need dynamic response
+        "quelle heure est-il?": None,
+        # Acknowledgments (should not respond)
+        "yeah": None,
+        "yep": None,
+        "ok": None,
+        "okay": None,
+        "oui": None,
+        "ouais": None,
+        "d'accord": None,
+        # Other
+        "au revoir": "Au revoir!",
+        "goodbye": "Goodbye!",
+        "à bientôt": "À bientôt!",
+    }
+
     while True:
         item = await q.get()
         if isinstance(item, tuple) and len(item) == 3:
@@ -1221,6 +1265,75 @@ async def _llm_worker(app: FastAPI) -> None:
         else:
             session_id, transcript, speaker_user = None, str(item), "unknown"
         try:
+            # Router: Classify transcript as CHAT vs CONTROL before LLM
+            router = getattr(app.state, "router", None)
+            if router is not None:
+                try:
+                    decision = router.classify(transcript)
+                    log.info(
+                        "ARIA.Router.Decision",
+                        extra={
+                            "fields": {
+                                "text": transcript[:50] + "..." if len(transcript) > 50 else transcript,
+                                "mode": decision.mode,
+                                "detected_lang": decision.detected_lang,
+                                "confidence": round(decision.confidence, 3),
+                                "distance_to_control": round(decision.distance_to_control, 3),
+                                "distance_to_chat": round(decision.distance_to_chat, 3),
+                                "latency_ms": round(decision.latency_ms, 1),
+                                "reasoning": decision.reasoning
+                            }
+                        }
+                    )
+
+                    # If classified as CHAT, respond directly without LLM
+                    if decision.mode == "chat":
+                        # Find matching response (case-insensitive)
+                        text_lower = transcript.lower().strip().rstrip("?!.,")
+                        response = chat_responses.get(text_lower)
+
+                        # Handle time questions dynamically
+                        if text_lower in ("quelle heure est-il", "quelle heure est-il?", "what time is it", "what time is it?"):
+                            import datetime
+                            now = datetime.datetime.now()
+                            if decision.detected_lang == "fr":
+                                response = f"Il est {now.strftime('%H:%M')}."
+                            else:
+                                response = f"It's {now.strftime('%I:%M %p')}."
+
+                        # Default response based on language
+                        if response is None:
+                            if decision.detected_lang == "fr":
+                                response = "D'accord."
+                            else:
+                                response = "Okay."
+
+                        if response:
+                            print(f"ARIA.CHAT: {response}", flush=True)
+                            log.info(
+                                "ARIA.Router.ChatResponse",
+                                extra={"fields": {"transcript": transcript, "response": response, "lang": decision.detected_lang}}
+                            )
+
+                            # Optional TTS for chat response
+                            speech = getattr(app.state, "speech_output", None)
+                            if speech is not None:
+                                try:
+                                    await speech.speak(response)
+                                except Exception as e:
+                                    log.info("ARIA.TTS.Error", extra={"fields": {"error": repr(e)}})
+
+                        continue  # Skip LLM processing
+
+                    # If CONTROL or UNKNOWN, proceed to LLM
+                    log.info(
+                        "ARIA.Router.Proceeding",
+                        extra={"fields": {"mode": decision.mode, "reason": "Requires LLM processing"}}
+                    )
+
+                except Exception as e:
+                    log.error("ARIA.Router.ClassifyError", extra={"fields": {"error": repr(e)}})
+                    # Continue to LLM on router error
             # Always emit a low-noise marker so it's obvious when a request is fired.
             # (Full prompt logging is gated behind ARIA_LLM_DEBUG.)
             log.info(

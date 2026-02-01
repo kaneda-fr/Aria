@@ -132,6 +132,31 @@ Prefer **Echo Guard v2** unless you specifically need v1 tuning.
 
 ---
 
+## Router (CHAT/CONTROL Classification)
+
+The router classifies STT transcripts as CHAT (conversation) or CONTROL (device action) before LLM processing.
+Uses language-specific embedding models for improved accuracy.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| ARIA_ROUTER_ENABLED | 0 | Enable router classification |
+| ARIA_ROUTER_MODEL_EN | BAAI/bge-small-en-v1.5 | Embedding model for English |
+| ARIA_ROUTER_MODEL_FR | intfloat/multilingual-e5-small | Embedding model for French |
+| ARIA_ROUTER_CONTROL_THRESHOLD | 0.70 | Confidence threshold for CONTROL classification (0-1) |
+| ARIA_ROUTER_CHAT_THRESHOLD | 0.70 | Confidence threshold for CHAT classification (0-1) |
+| ARIA_ROUTER_UNKNOWN_THRESHOLD | 0.50 | Distance threshold for UNKNOWN classification |
+| ARIA_ROUTER_USE_SEED_DATA | 1 | Initialize centroids from built-in seed examples |
+| ARIA_ROUTER_LANG_DETECT | heuristic | Language detection method: heuristic or langid |
+
+**How it works:**
+1. Detects language (FR/EN) from STT transcript
+2. Selects language-specific embedding model
+3. Compares to pre-computed CHAT/CONTROL centroids
+4. CHAT → fast response (no LLM call)
+5. CONTROL/UNKNOWN → proceeds to LLM with tool calling
+
+---
+
 ## Inventory Provider
 
 | Variable | Default | Description |
@@ -207,6 +232,7 @@ Prefer **Echo Guard v2** unless you specifically need v1 tuning.
 | ARIA_TTS_SINK | sonos_http | Audio sink type (currently only sonos_http) |
 | ARIA_SONOS_IP | (optional) | Override Sonos speaker IP (discovery used when unset) |
 | ARIA_SONOS_NAME | (empty) | Friendly Sonos name to target during discovery (e.g., "Living Room") |
+| ARIA_SONOS_VOLUME | 30 | Sonos speaker volume (0-100), set before each TTS playback |
 | ARIA_SONOS_DISCOVERY_TIMEOUT | 5.0 | Seconds to wait while discovering speakers via SoCo |
 | ARIA_HTTP_BASE_URL | (required) | Base URL for HTTP audio serving (e.g., http://192.0.2.10:8000) |
 

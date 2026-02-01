@@ -127,6 +127,25 @@ def discover_sonos_ip(*, preferred_name: str | None = None, timeout: float = 5.0
 class SonosHttpSink(AudioSink):
     speaker_ip: str
 
+    async def set_volume(self, volume: int) -> None:
+        """Set Sonos speaker volume (0-100)."""
+        vol = max(0, min(100, volume))
+
+        def _set_vol() -> None:
+            from soco import SoCo
+            SoCo(self.speaker_ip).volume = vol
+
+        await asyncio.to_thread(_set_vol)
+        log.info("ARIA.SONOS.VolumeSet", extra={"fields": {"volume": vol}})
+
+    async def get_volume(self) -> int:
+        """Get current Sonos speaker volume (0-100)."""
+        def _get_vol() -> int:
+            from soco import SoCo
+            return SoCo(self.speaker_ip).volume
+
+        return await asyncio.to_thread(_get_vol)
+
     async def play_url(self, url: str) -> PlaybackHandle:
         handle = PlaybackHandle(id=uuid.uuid4().hex)
 

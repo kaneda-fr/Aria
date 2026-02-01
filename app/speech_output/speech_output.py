@@ -173,6 +173,7 @@ class SpeechOutput:
     _lang_detect: str = field(init=False, default="heuristic", repr=False)
     _short_reuse_chars: int = field(init=False, default=20, repr=False)
     _last_lang: str | None = field(init=False, default=None, repr=False)
+    _sonos_volume: int | None = field(init=False, default=None, repr=False)
 
     def __post_init__(self) -> None:
         self._engine = build_tts_engine(self.cfg)
@@ -226,6 +227,16 @@ class SpeechOutput:
             self._short_reuse_chars = int(os.environ.get("ARIA_TTS_LANG_SHORT_REUSE_CHARS", "20") or "20")
         except ValueError:
             self._short_reuse_chars = 20
+
+        # Sonos speaker volume (0-100, default 30)
+        sonos_vol_raw = os.environ.get("ARIA_SONOS_VOLUME", "").strip()
+        if sonos_vol_raw:
+            try:
+                self._sonos_volume = max(0, min(100, int(sonos_vol_raw)))
+            except ValueError:
+                self._sonos_volume = None
+        else:
+            self._sonos_volume = 30  # Default 30%
 
         # _task and _lock are initialized by dataclass defaults.
 
@@ -291,7 +302,14 @@ class SpeechOutput:
             if not chunks:
                 return
 
-            log.info("ARIA.TTS.Speaking", extra={"fields": {"chunks": len(chunks)}})
+            # Set Sonos volume before speaking
+            if self._sonos_volume is not None and self._sink is not None:
+                try:
+                    await self._sink.set_volume(self._sonos_volume)
+                except Exception as e:
+                    log.warning("ARIA.TTS.VolumeError", extra={"fields": {"error": repr(e)}})
+
+            log.info("ARIA.TTS.Speaking", extra={"fields": {"chunks": len(chunks), "sonos_volume": self._sonos_volume}})
 
             for chunk in chunks:
                 try:

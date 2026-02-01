@@ -23,6 +23,9 @@ Aria is a **local-first voice assistant stack** built around a FastAPI server th
     ├─ ASR (Parakeet ONNX) → final transcript
     ├─ Echo Guard v2 (keep) → suppress obvious feedback loops
     ├─ Speaker ID (optional) → label speaker / drop self-speech
+    ├─ Router (optional) → CHAT/CONTROL classification with lang detection
+    │   ├─ CHAT → fast response (no LLM)
+    │   └─ CONTROL/UNKNOWN → LLM pipeline
     ├─ LLM (optional, local) → response text
     ├─ TTS (Piper) → WAV
     └─ Sonos output (HTTP stream) → SoCo.play_uri("http://server/tts.wav?...")
@@ -30,6 +33,7 @@ Aria is a **local-first voice assistant stack** built around a FastAPI server th
 Notes:
 - Speaker ID is intended to replace echo suppression long-term, but you requested to keep
   Echo Guard v2 for now.
+- Router uses per-language embedding models (bge-small-en, multilingual-e5-small).
 ```
 
 ## Quickstart (dev: server + macOS client)
@@ -126,6 +130,7 @@ This includes configuration for:
 - ASR (quality controls, filler detection)
 - speaker recognition (self-speech suppression)
 - echo suppression (Echo Guard v2)
+- **router (CHAT/CONTROL classification with language detection)**
 - LLM integration (Ollama and llama.cpp support)
 - **plugin system (tool calling, home automation)**
 - TTS (Piper, multi-language voice selection, chunking)
@@ -167,6 +172,39 @@ export ARIA_JEEDOM_MQTT_PORT=1883
 ```
 
 See [`docs/PLUGIN_SYSTEM.md`](docs/PLUGIN_SYSTEM.md) for full architecture and implementation details.
+
+## Router (CHAT/CONTROL Classification)
+
+ARIA includes an optional **embedding-based router** that classifies STT transcripts before LLM processing:
+
+- **CHAT** → Simple conversation (greetings, thanks) → Fast response without LLM
+- **CONTROL** → Device commands → Full LLM + tool calling pipeline
+- **UNKNOWN** → Uncertain → Falls back to LLM
+
+**Language-specific models:**
+- English: `BAAI/bge-small-en-v1.5`
+- French: `intfloat/multilingual-e5-small`
+
+**Flow:**
+```
+STT Transcript → Language Detection (FR/EN)
+                       ↓
+              Select Embedding Model
+                       ↓
+         Compare to CHAT/CONTROL Centroids
+                       ↓
+         CHAT → Fast Response | CONTROL → LLM
+```
+
+**Enable with:**
+```bash
+export ARIA_ROUTER_ENABLED=1
+export ARIA_ROUTER_MODEL_EN=BAAI/bge-small-en-v1.5
+export ARIA_ROUTER_MODEL_FR=intfloat/multilingual-e5-small
+export ARIA_ROUTER_LANG_DETECT=heuristic
+```
+
+See [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md) for all router configuration options.
 
 ---
 
