@@ -148,31 +148,28 @@ class ActionsProvider(AriaPlugin):
         # Build MQTT payload
         payload = self._build_payload(cmd_id, value, execution_spec)
 
-        # Publish command
-        topic = f"{self.root_topic}/cmd/action/{cmd_id}"
+        # Publish command (Jeedom MQTT2 protocol)
+        topic = f"{self.root_topic}/cmd/set/{cmd_id}"
 
-        # Debug logging (if enabled)
-        import os
-        debug_enabled = os.environ.get("ARIA_DEBUG", "0").strip().lower() in {"1", "true", "yes", "on"}
-        if debug_enabled:
-            log.info("ARIA.Actions.Debug.Publish", extra={"fields": {
-                "topic": topic,
-                "payload": payload,
-                "qos": self.qos,
-                "cmd_id": cmd_id,
-                "value": value
-            }})
+        # ALWAYS log MQTT messages being sent (for debugging and monitoring)
+        log.info("ARIA.Actions.Publishing", extra={"fields": {
+            "topic": topic,
+            "payload": payload,
+            "qos": self.qos,
+            "cmd_id": cmd_id,
+            "value": value
+        }})
 
         try:
             result = self._client.publish(topic, payload, qos=self.qos)
 
             if result.rc == mqtt.MQTT_ERR_SUCCESS:
-                logger.info(f"Command executed: {cmd_id} = {value}")
-                log.info("ARIA.Actions.Executed", extra={"fields": {
+                log.info("ARIA.Actions.Published", extra={"fields": {
                     "cmd_id": cmd_id,
                     "value": value,
                     "topic": topic,
-                    "payload": payload if debug_enabled else "[hidden]"
+                    "payload": payload,
+                    "mid": result.mid
                 }})
                 return {
                     "success": True,
@@ -185,7 +182,9 @@ class ActionsProvider(AriaPlugin):
                 log.error("ARIA.Actions.PublishFailed", extra={"fields": {
                     "cmd_id": cmd_id,
                     "error": error_msg,
-                    "return_code": result.rc
+                    "return_code": result.rc,
+                    "topic": topic,
+                    "payload": payload
                 }})
                 return {
                     "success": False,
@@ -197,7 +196,9 @@ class ActionsProvider(AriaPlugin):
         except Exception as e:
             log.error("ARIA.Actions.ExecutionError", extra={"fields": {
                 "cmd_id": cmd_id,
-                "error": str(e)
+                "error": str(e),
+                "topic": topic,
+                "payload": payload
             }})
             return {
                 "success": False,
@@ -258,16 +259,59 @@ class ActionsProvider(AriaPlugin):
         """
         Build MQTT payload for command execution.
 
-        Jeedom MQTT2 protocol:
-        - Slider/message/select: {"value": X}
-        - Binary/other: {} (empty JSON)
+        Jeedom MQTT2 protocol (from docs/jeedom_mqtt_command_execution.md):
+        - Slider (dimmers, shutters): {"slider": X}
+        - Select (list commands): {"select": X}
+        - Message (notifications): {"title": "...", "message": "..."}
+        - Color (RGB lights): {"color": "#rrggbb"}
+        - Binary/other (on/off, up/down): {} (empty JSON) or empty string
         """
-        if value is not None:
-            # Commands with values
-            return json.dumps({"value": value})
-        else:
-            # Commands without values (binary on/off, etc.)
+        # Get payload template from execution spec if available
+        payload_template = None
+        if execution_spec:
+            args = execution_spec.get("args", {})
+            payload_template = args.get("payload_template")
+
+        # Build payload based on template
+        if payload_template == "slider":
+            # Slider commands (dimmers, shutters, etc.)
+            if value is not None:
+                return json.dumps({"slider": int(value)})
+            else:
+                return json.dumps({})
+
+        elif payload_template == "select":
+            # Select/list commands
+            if value is not None:
+                return json.dumps({"select": value})
+            else:
+                return json.dumps({})
+
+        elif payload_template == "message":
+            # Message commands (notifications, etc.)
+            if isinstance(value, dict):
+                return json.dumps(value)
+            else:
+                return json.dumps({"message": str(value) if value else ""})
+
+        elif payload_template == "color":
+            # Color commands (RGB lights)
+            if value is not None:
+                return json.dumps({"color": str(value)})
+            else:
+                return json.dumps({})
+
+        elif payload_template == "other" or payload_template is None:
+            # Binary/other commands (on/off, up/down, stop)
+            # Use empty JSON object
             return json.dumps({})
+
+        else:
+            # Unknown template - fallback to generic value
+            if value is not None:
+                return json.dumps({"value": value})
+            else:
+                return json.dumps({})
 
     def _on_connect(self, client, userdata, flags, rc):
         """Handle MQTT connection."""

@@ -122,19 +122,50 @@ Prefer **Echo Guard v2** unless you specifically need v1 tuning.
 
 ---
 
+## Plugin System
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| ARIA_PLUGINS_ENABLED | 0 | Enable plugin system (required for tool calling) |
+| ARIA_INVENTORY_ENABLED | 0 | Enable inventory provider (device discovery) |
+| ARIA_ACTIONS_ENABLED | 0 | Enable actions provider (command execution) |
+
+---
+
+## Inventory Provider
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| ARIA_INVENTORY_CACHE_PATH | ./inventory.json | Path to cache device inventory JSON |
+| ARIA_INVENTORY_REFRESH_INTERVAL_SEC | 300 | Seconds between inventory refreshes (0 = only on startup) |
+
+---
+
+## Jeedom MQTT Integration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| ARIA_JEEDOM_MQTT_HOST | 127.0.0.1 | Jeedom MQTT broker host |
+| ARIA_JEEDOM_MQTT_PORT | 1883 | Jeedom MQTT broker port |
+| ARIA_JEEDOM_MQTT_ROOT_TOPIC | jeedom | Root MQTT topic for Jeedom |
+| ARIA_MQTT_QOS_SUBSCRIBE | 1 | QoS level for MQTT subscriptions (0-2) |
+| ARIA_MQTT_QOS_PUBLISH | 1 | QoS level for MQTT publishes (0-2) |
+
+---
+
 ## LLM Integration
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | ARIA_LLM_PROVIDER | (none) | LLM provider: ollama or llamacpp |
 | ARIA_LLM_URL | http://localhost:11434 | LLM endpoint URL (Ollama) or http://127.0.0.1:8001/v1 (llama.cpp) |
-| ARIA_LLM_MODEL | qwen2.5:3b-instruct | Model name (Ollama) or local (llama.cpp) |
+| ARIA_LLM_MODEL | qwen2.5:3b-instruct | Model name (Ollama) or local (llama.cpp). Recommend 7b for tool calling. |
 | ARIA_LLM_TIMEOUT_S | 12 | Request timeout in seconds |
-| ARIA_LLM_NUM_PREDICT | (none) | Max tokens to generate |
-| ARIA_LLM_TEMPERATURE | (none) | Sampling temperature |
-| ARIA_LLM_TOP_P | (none) | Top-p sampling |
+| ARIA_LLM_NUM_PREDICT | (none) | Max tokens to generate (min 1024 for tool calling) |
+| ARIA_LLM_TEMPERATURE | (none) | Sampling temperature (recommend 0.1 for tool calling) |
+| ARIA_LLM_TOP_P | (none) | Top-p sampling (recommend 0.85 for tool calling) |
 | ARIA_LLM_STREAM | 0 | Enable streaming responses |
-| ARIA_LLM_SYSTEM_PROMPT | You are ARIA... | System prompt for LLM |
+| ARIA_LLM_SYSTEM_PROMPT | You are ARIA... | System prompt for LLM (must include tool calling rules) |
 | ARIA_LLM_HISTORY_MAX_MESSAGES | 8 | Max conversation history (user+assistant pairs) |
 | ARIA_LLM_DEBUG | 0 | Enable debug logging for LLM |
 | ARIA_LLM_DEBUG_MAX_CHARS | 800 | Max characters to log in debug mode |

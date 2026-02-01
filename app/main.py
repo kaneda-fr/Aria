@@ -25,6 +25,7 @@ from app.llm.ollama_client import SYSTEM_PROMPT, generate_llm_response, llm_enab
 from app.plugins.registry import PluginRegistry
 from app.plugins.inventory import InventoryProvider
 from app.plugins.actions import ActionsProvider
+from app.routing import get_router
 from app.speaker_recognition.recognizer import SpeakerRecognizer
 from app.speech_output.echo_guard_v2 import EchoGuardV2
 from app.speech_output.speech_output import maybe_build_speech_output
@@ -261,6 +262,48 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         log.info("ARIA.Plugins.NotEnabled", extra={"fields": {"error": repr(e)}})
 
+    # Self-Learning Router (optional, enabled via env)
+    app.state.router = None
+    try:
+        router_enabled = os.environ.get("ARIA_ROUTER_ENABLED", "0").strip().lower() in {"1", "true", "yes", "on"}
+        if router_enabled:
+            model_name = os.environ.get(
+                "ARIA_ROUTER_MODEL",
+                "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+            )
+            control_threshold = float(os.environ.get("ARIA_ROUTER_CONTROL_THRESHOLD", "0.70"))
+            chat_threshold = float(os.environ.get("ARIA_ROUTER_CHAT_THRESHOLD", "0.70"))
+            unknown_threshold = float(os.environ.get("ARIA_ROUTER_UNKNOWN_THRESHOLD", "0.50"))
+            use_seed_data = os.environ.get("ARIA_ROUTER_USE_SEED_DATA", "1").strip().lower() in {"1", "true", "yes", "on"}
+
+            app.state.router = get_router(
+                model_name=model_name,
+                control_threshold=control_threshold,
+                chat_threshold=chat_threshold,
+                unknown_threshold=unknown_threshold,
+                use_seed_data=use_seed_data
+            )
+
+            router_stats = app.state.router.get_stats()
+            log.info(
+                "ARIA.Router.Enabled",
+                extra={
+                    "fields": {
+                        "model": model_name,
+                        "control_threshold": control_threshold,
+                        "chat_threshold": chat_threshold,
+                        "unknown_threshold": unknown_threshold,
+                        "centroid_distance": router_stats.get("centroid_distance"),
+                        "centroids_initialized": router_stats.get("centroids_initialized")
+                    }
+                }
+            )
+        else:
+            log.info("ARIA.Router.Disabled", extra={"fields": {}})
+    except Exception as e:
+        log.error("ARIA.Router.InitError", extra={"fields": {"error": repr(e)}})
+        app.state.router = None
+
     yield
 
     # Cleanup: Stop plugins first (before other resources)
@@ -474,6 +517,82 @@ async def process_text(request: dict[str, Any]) -> dict[str, Any]:
     speaker_user = request.get("speaker_user", "unknown")
     speak_response = request.get("speak_response", False)
     use_tools = request.get("use_tools", True)
+
+    # Router: Classify text as CHAT vs CONTROL
+    router = getattr(app.state, "router", None)
+    if router is not None:
+        try:
+            decision = router.classify(text)
+
+            log.info(
+                "ARIA.Router.Decision",
+                extra={
+                    "fields": {
+                        "text": text[:50] + "..." if len(text) > 50 else text,
+                        "mode": decision.mode,
+                        "confidence": round(decision.confidence, 3),
+                        "distance_to_control": round(decision.distance_to_control, 3),
+                        "distance_to_chat": round(decision.distance_to_chat, 3),
+                        "latency_ms": round(decision.latency_ms, 1),
+                        "reasoning": decision.reasoning
+                    }
+                }
+            )
+
+            # If classified as CHAT with high confidence, respond directly without LLM
+            if decision.mode == "chat":
+                # Simple conversational responses
+                chat_responses = {
+                    # Greetings (French)
+                    "bonjour": "Bonjour! Comment puis-je vous aider?",
+                    "bonsoir": "Bonsoir!",
+                    "salut": "Salut!",
+                    "bonne nuit": "Bonne nuit!",
+                    "coucou": "Coucou!",
+
+                    # Greetings (English)
+                    "hello": "Hello! How can I help you?",
+                    "hi": "Hi there!",
+                    "hey": "Hey!",
+                    "good morning": "Good morning!",
+                    "good evening": "Good evening!",
+                    "good night": "Good night!",
+
+                    # Thanks (French)
+                    "merci": "De rien!",
+                    "merci beaucoup": "Je vous en prie!",
+
+                    # Thanks (English)
+                    "thank you": "You're welcome!",
+                    "thanks": "You're welcome!",
+
+                    # Other
+                    "au revoir": "Au revoir!",
+                    "goodbye": "Goodbye!",
+                    "à bientôt": "À bientôt!",
+                }
+
+                # Find matching response (case-insensitive)
+                response_text = chat_responses.get(text.lower().strip(), "Bonjour! Comment puis-je vous aider?")
+
+                return {
+                    "success": True,
+                    "text": text,
+                    "response": response_text,
+                    "error": None,
+                    "spoken": False,
+                    "tool_calls_made": 0
+                }
+
+            # If CONTROL or UNKNOWN, proceed to LLM with tools
+            log.info(
+                "ARIA.Router.Proceeding",
+                extra={"fields": {"mode": decision.mode, "reason": "Requires LLM processing"}}
+            )
+
+        except Exception as e:
+            log.error("ARIA.Router.ClassifyError", extra={"fields": {"error": repr(e)}})
+            # Continue to LLM on router error
 
     # Check if LLM is enabled
     llm_config = getattr(app.state, "llm_config", None)

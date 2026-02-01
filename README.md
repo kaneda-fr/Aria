@@ -127,6 +127,7 @@ This includes configuration for:
 - speaker recognition (self-speech suppression)
 - echo suppression (Echo Guard v2)
 - LLM integration (Ollama and llama.cpp support)
+- **plugin system (tool calling, home automation)**
 - TTS (Piper, multi-language voice selection, chunking)
 - Sonos output (HTTP streaming)
 - debug and development options
@@ -134,7 +135,40 @@ This includes configuration for:
 For tuning VAD sensitivity and reducing false triggers, see:
 ➡️ **[`docs/tuning.md`](docs/tuning.md)**
 
+For plugin system architecture and tool calling details, see:
+➡️ **[`docs/PLUGIN_SYSTEM.md`](docs/PLUGIN_SYSTEM.md)**
+
 If a variable is not documented in ENVIRONMENT.md, it should be considered unsupported.
+
+## Plugin System (Tool Calling)
+
+ARIA includes an optional **plugin system** that enables the LLM to interact with external systems through function calling.
+
+**Current plugins:**
+- **Inventory Provider** — Discovers devices and commands from Jeedom via MQTT
+- **Actions Provider** — Executes commands on devices via MQTT (Jeedom MQTT2 protocol)
+
+**Example:**
+```
+User: "allume la lumière du salon"
+→ LLM calls find_devices(query="lumière salon")
+→ LLM calls execute_command(cmd_id="5587")
+→ MQTT: jeedom/cmd/set/5587 ← {}
+→ Response: "J'ai allumé la lumière du salon."
+```
+
+Enable with:
+```bash
+export ARIA_PLUGINS_ENABLED=1
+export ARIA_INVENTORY_ENABLED=1
+export ARIA_ACTIONS_ENABLED=1
+export ARIA_JEEDOM_MQTT_HOST=192.168.100.60
+export ARIA_JEEDOM_MQTT_PORT=1883
+```
+
+See [`docs/PLUGIN_SYSTEM.md`](docs/PLUGIN_SYSTEM.md) for full architecture and implementation details.
+
+---
 
 ## Troubleshooting
 
@@ -150,7 +184,8 @@ If a variable is not documented in ENVIRONMENT.md, it should be considered unsup
 ## Roadmap (directional)
 
 - Graduate speaker recognition to the primary feedback-loop guard and keep Echo Guard v2 purely as a fallback.
-- Expand local “skills” (home automation hooks, local vector DB/context cache, file lookups).
+- Improve tool calling reliability (pre-filter layer, upgrade to 7b model).
+- Expand plugin system with additional integrations (Zigbee, Z-Wave, HomeAssistant).
 - Add lightweight observability (latency budget per stage: VAD, ASR, LLM, TTS, Sonos fetch).
 
 ## For contributors
