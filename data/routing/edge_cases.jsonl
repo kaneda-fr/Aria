@@ -1,0 +1,22 @@
+{"text": "lights", "label": "control", "lang": "en"}
+{"text": "lumière", "label": "control", "lang": "fr"}
+{"text": "what lights do I have?", "label": "chat", "lang": "en"}
+{"text": "quelles lumières j'ai ?", "label": "chat", "lang": "fr"}
+{"text": "can you help me with the lights?", "label": "control", "lang": "en"}
+{"text": "peux-tu m'aider avec les lumières ?", "label": "control", "lang": "fr"}
+{"text": "it's dark", "label": "control", "lang": "en"}
+{"text": "il fait noir", "label": "control", "lang": "fr"}
+{"text": "I can't see", "label": "control", "lang": "en"}
+{"text": "je ne vois rien", "label": "control", "lang": "fr"}
+{"text": "how do I control the lights?", "label": "chat", "lang": "en"}
+{"text": "comment contrôler les lumières ?", "label": "chat", "lang": "fr"}
+{"text": "show me the bedroom lights", "label": "chat", "lang": "en"}
+{"text": "montre-moi les lumières de la chambre", "label": "chat", "lang": "fr"}
+{"text": "lights on", "label": "control", "lang": "en"}
+{"text": "lumières allumées", "label": "control", "lang": "fr"}
+{"text": "are the lights on?", "label": "chat", "lang": "en"}
+{"text": "les lumières sont allumées ?", "label": "chat", "lang": "fr"}
+{"text": "tell me about the shutters", "label": "chat", "lang": "en"}
+{"text": "parle-moi des volets", "label": "chat", "lang": "fr"}
+{"text": "shutters", "label": "control", "lang": "en"}
+{"text": "volets", "label": "control", "lang": "fr"}
