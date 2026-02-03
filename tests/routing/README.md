@@ -1,6 +1,6 @@
 # Intent Routing Benchmark
 
-This directory contains tools for testing embedding-based intent routing (chat vs control classification).
+This directory contains tools for testing embedding-based intent routing (chat vs control classification) with multilingual support (French, English, German).
 
 ## Quick Start (ONNX INT8 - Recommended)
 
@@ -56,7 +56,7 @@ Each line is a JSON object with:
 {
   "text": "allume la lumière du salon",
   "label": "control",  // or "chat"
-  "lang": "fr"  // or "en"
+  "lang": "fr"  // or "en" or "de"
 }
 ```
 

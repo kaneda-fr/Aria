@@ -37,6 +37,18 @@ CONTROL_TEMPLATES_EN = [
     "please {action} {article} {device}",
 ]
 
+CONTROL_TEMPLATES_DE = [
+    "{action} {article} {device} {location}",
+    "{action} {article} {device}",
+    "{action} {device} im {location}",
+    "{action} {device}",
+    "stelle {article} {device} auf {value}",
+    "stelle {device} auf {value}",
+    "{device} {location} {action}",
+    "kannst du {article} {device} {location} {action}",
+    "bitte {action} {article} {device}",
+]
+
 # Vocabulary
 DEVICES_FR = [
     "lumière", "lumières", "lampe",
@@ -48,6 +60,11 @@ DEVICES_EN = [
     "shutter", "shutters", "blind",
     "heating", "thermostat", "radiator", "temperature"
 ]
+DEVICES_DE = [
+    "Licht", "Lichter", "Lampe",
+    "Rolladen", "Jalousie", "Rollladen",
+    "Heizung", "Thermostat", "Heizkörper", "Temperatur"
+]
 
 ACTIONS_FR = [
     "allume", "éteins", "ouvre", "ferme", "baisse", "monte", "augmente", "diminue", "règle", "met"
@@ -56,9 +73,14 @@ ACTIONS_EN = [
     "turn on", "turn off", "switch on", "switch off", "open", "close",
     "raise", "lower", "increase", "decrease", "set", "adjust"
 ]
+ACTIONS_DE = [
+    "schalte ein", "schalte aus", "mach an", "mach aus", "öffne", "schließe",
+    "hoch", "runter", "erhöhe", "verringere", "stelle", "reguliere"
+]
 
 ARTICLES_FR = ["la", "le", "les", ""]
 ARTICLES_EN = ["the", ""]
+ARTICLES_DE = ["das", "die", "den", ""]
 
 # Real room names from inventory
 LOCATIONS_FR = [
@@ -68,6 +90,10 @@ LOCATIONS_FR = [
 LOCATIONS_EN = [
     "living room", "bedroom", "kitchen", "bathroom", "office", "hallway", "corridor",
     "parents bedroom", "kids room", "upstairs", "garage"
+]
+LOCATIONS_DE = [
+    "Wohnzimmer", "Schlafzimmer", "Küche", "Badezimmer", "Büro", "Flur", "Korridor",
+    "Elternschlafzimmer", "Kinderzimmer", "Obergeschoss", "Garage"
 ]
 
 VALUES = ["50%", "50", "100%", "0%", "maximum", "minimum", "moitié", "20", "21", "22", "19"]
@@ -93,6 +119,17 @@ IMPLICIT_CONTROL_EN = [
     "I'm hot",
     "it's too bright",
     "too dark",
+]
+
+IMPLICIT_CONTROL_DE = [
+    "es ist dunkel",
+    "es ist kalt",
+    "es ist warm",
+    "ich sehe nichts",
+    "mir ist kalt",
+    "mir ist warm",
+    "es ist zu hell",
+    "zu dunkel",
 ]
 
 # Edge case templates - PARTIAL/MINIMAL COMMANDS (ambiguous, should be control)
@@ -124,6 +161,20 @@ MINIMAL_CONTROL_EN = [
     "living room",
 ]
 
+MINIMAL_CONTROL_DE = [
+    "Licht",
+    "Lichter",
+    "Rolladen",
+    "Jalousie",
+    "Heizung",
+    "Thermostat",
+    "Heizkörper",
+    "Temperatur",
+    "Schlafzimmer",
+    "Küche",
+    "Wohnzimmer",
+]
+
 # Edge case templates - COMMANDS WITH CONTEXT (should be control)
 CONTEXTUAL_CONTROL_FR = [
     "peux-tu m'aider avec {article} {device}",
@@ -139,6 +190,14 @@ CONTEXTUAL_CONTROL_EN = [
     "{article} {device} please",
     "{device} now",
     "{device} in {location} please",
+]
+
+CONTEXTUAL_CONTROL_DE = [
+    "kannst du mir mit {article} {device} helfen",
+    "ich brauche {article} {device}",
+    "{article} {device} bitte",
+    "{device} jetzt",
+    "{device} im {location} bitte",
 ]
 
 # Edge case templates - STATUS QUERIES (asking about state, should be chat)
@@ -167,6 +226,18 @@ STATUS_QUERY_EN = [
     "list {article} {device}",
 ]
 
+STATUS_QUERY_DE = [
+    "ist {article} {device} an?",
+    "sind {article} {device} an?",
+    "ist {article} {device} im {location} offen?",
+    "wie ist die Temperatur?",
+    "wie ist die Heizungseinstellung?",
+    "auf was steht das Thermostat?",
+    "wie ist die Einstellung vom Heizkörper?",
+    "zeig mir {article} {device}",
+    "liste {article} {device}",
+]
+
 # Edge case templates - DEVICE INFO QUERIES (should be chat)
 INFO_QUERY_FR = [
     "quelles {device} j'ai ?",
@@ -192,6 +263,19 @@ INFO_QUERY_EN = [
     "what's the gas consumption?",
     "how much electricity have I used?",
     "electricity consumption today",
+]
+
+INFO_QUERY_DE = [
+    "welche {device} habe ich?",
+    "wie viele {device} gibt es?",
+    "wo sind {article} {device}?",
+    "wie steuere ich {article} {device}?",
+    "erzähl mir über {article} {device}",
+    "welche Geräte sind im {location}?",
+    "wie hoch ist der Wasserverbrauch?",
+    "wie hoch ist der Gasverbrauch?",
+    "wie viel Strom habe ich verbraucht?",
+    "Stromverbrauch heute",
 ]
 
 # Chat query templates
@@ -241,6 +325,29 @@ CHAT_TEMPLATES_EN = [
     "what can I ask you?",
 ]
 
+CHAT_TEMPLATES_DE = [
+    "wie spät ist es?",
+    "welcher Tag ist heute?",
+    "erzähl mir einen Witz",
+    "wie geht es dir?",
+    "wer bist du?",
+    "was kannst du tun?",
+    "wie ist das Wetter?",
+    "hilf mir",
+    "danke",
+    "hallo",
+    "guten Abend",
+    "gute Nacht",
+    "bis morgen",
+    "wie funktioniert das?",
+    "erklär mal",
+    "warum?",
+    "was ist das?",
+    "kannst du wiederholen?",
+    "ich verstehe nicht",
+    "was kann ich dich fragen?",
+]
+
 
 def generate_control_example(lang: str = "fr", edge_case_prob: float = 0.3) -> Dict[str, str]:
     """Generate a single control command example."""
@@ -275,7 +382,7 @@ def generate_control_example(lang: str = "fr", edge_case_prob: float = 0.3) -> D
                 location=location,
                 value=value
             )
-    else:
+    elif lang == "en":
         if edge_type == "implicit":
             text = random.choice(IMPLICIT_CONTROL_EN)
         elif edge_type == "minimal":
@@ -293,6 +400,32 @@ def generate_control_example(lang: str = "fr", edge_case_prob: float = 0.3) -> D
             device = random.choice(DEVICES_EN)
             article = random.choice(ARTICLES_EN)
             location = random.choice(LOCATIONS_EN)
+            value = random.choice(VALUES)
+            text = template.format(
+                action=action,
+                device=device,
+                article=article,
+                location=location,
+                value=value
+            )
+    else:  # lang == "de"
+        if edge_type == "implicit":
+            text = random.choice(IMPLICIT_CONTROL_DE)
+        elif edge_type == "minimal":
+            text = random.choice(MINIMAL_CONTROL_DE)
+        elif edge_type == "contextual":
+            template = random.choice(CONTEXTUAL_CONTROL_DE)
+            device = random.choice(DEVICES_DE)
+            article = random.choice(ARTICLES_DE)
+            location = random.choice(LOCATIONS_DE)
+            text = template.format(device=device, article=article, location=location)
+        else:
+            # Standard control command
+            template = random.choice(CONTROL_TEMPLATES_DE)
+            action = random.choice(ACTIONS_DE)
+            device = random.choice(DEVICES_DE)
+            article = random.choice(ARTICLES_DE)
+            location = random.choice(LOCATIONS_DE)
             value = random.choice(VALUES)
             text = template.format(
                 action=action,
@@ -332,7 +465,7 @@ def generate_chat_example(lang: str = "fr", edge_case_prob: float = 0.3) -> Dict
             text = template.format(device=device, article=article, location=location)
         else:
             text = random.choice(CHAT_TEMPLATES_FR)
-    else:
+    elif lang == "en":
         if edge_type == "status":
             template = random.choice(STATUS_QUERY_EN)
             device = random.choice(DEVICES_EN)
@@ -347,6 +480,21 @@ def generate_chat_example(lang: str = "fr", edge_case_prob: float = 0.3) -> Dict
             text = template.format(device=device, article=article, location=location)
         else:
             text = random.choice(CHAT_TEMPLATES_EN)
+    else:  # lang == "de"
+        if edge_type == "status":
+            template = random.choice(STATUS_QUERY_DE)
+            device = random.choice(DEVICES_DE)
+            article = random.choice(ARTICLES_DE)
+            location = random.choice(LOCATIONS_DE)
+            text = template.format(device=device, article=article, location=location)
+        elif edge_type == "info":
+            template = random.choice(INFO_QUERY_DE)
+            device = random.choice(DEVICES_DE)
+            article = random.choice(ARTICLES_DE)
+            location = random.choice(LOCATIONS_DE)
+            text = template.format(device=device, article=article, location=location)
+        else:
+            text = random.choice(CHAT_TEMPLATES_DE)
 
     return {"text": text, "label": "chat", "lang": lang}
 
@@ -397,7 +545,7 @@ def generate_dataset(count: int, output_path: Path, typo_rate: float = 0.2, edge
 
     print(f"Generating {control_count} control examples (including ~{int(control_count * edge_case_rate)} edge cases)...")
     for _ in range(control_count):
-        lang = random.choice(["fr", "en"])
+        lang = random.choice(["fr", "en", "de"])
         example = generate_control_example(lang, edge_case_prob=edge_case_rate)
 
         # Add typos to some examples
@@ -408,7 +556,7 @@ def generate_dataset(count: int, output_path: Path, typo_rate: float = 0.2, edge
 
     print(f"Generating {chat_count} chat examples (including ~{int(chat_count * edge_case_rate)} edge cases)...")
     for _ in range(chat_count):
-        lang = random.choice(["fr", "en"])
+        lang = random.choice(["fr", "en", "de"])
         example = generate_chat_example(lang, edge_case_prob=edge_case_rate)
 
         # Add typos to some examples
@@ -431,6 +579,7 @@ def generate_dataset(count: int, output_path: Path, typo_rate: float = 0.2, edge
     print(f"  - Chat: {sum(1 for e in examples if e['label'] == 'chat')}")
     print(f"  - French: {sum(1 for e in examples if e['lang'] == 'fr')}")
     print(f"  - English: {sum(1 for e in examples if e['lang'] == 'en')}")
+    print(f"  - German: {sum(1 for e in examples if e['lang'] == 'de')}")
     print(f"  - Edge case rate: ~{int(edge_case_rate * 100)}% (implicit commands, status queries, etc.)")
     print(f"  - Saved to: {output_path}")
 
