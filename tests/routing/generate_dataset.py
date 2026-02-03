@@ -38,23 +38,39 @@ CONTROL_TEMPLATES_EN = [
 ]
 
 # Vocabulary
-DEVICES_FR = ["lumière", "lumières", "lampe", "volet", "volets", "store", "chauffage", "thermostat"]
-DEVICES_EN = ["light", "lights", "lamp", "shutter", "shutters", "blind", "heating", "thermostat"]
+DEVICES_FR = [
+    "lumière", "lumières", "lampe",
+    "volet", "volets", "store",
+    "chauffage", "thermostat", "radiateur", "température"
+]
+DEVICES_EN = [
+    "light", "lights", "lamp",
+    "shutter", "shutters", "blind",
+    "heating", "thermostat", "radiator", "temperature"
+]
 
 ACTIONS_FR = [
-    "allume", "éteins", "ouvre", "ferme", "baisse", "monte", "augmente", "diminue"
+    "allume", "éteins", "ouvre", "ferme", "baisse", "monte", "augmente", "diminue", "règle", "met"
 ]
 ACTIONS_EN = [
-    "turn on", "turn off", "switch on", "switch off", "open", "close", "raise", "lower", "increase", "decrease"
+    "turn on", "turn off", "switch on", "switch off", "open", "close",
+    "raise", "lower", "increase", "decrease", "set", "adjust"
 ]
 
 ARTICLES_FR = ["la", "le", "les", ""]
 ARTICLES_EN = ["the", ""]
 
-LOCATIONS_FR = ["salon", "chambre", "cuisine", "salle de bain", "bureau", "entrée"]
-LOCATIONS_EN = ["living room", "bedroom", "kitchen", "bathroom", "office", "hallway"]
+# Real room names from inventory
+LOCATIONS_FR = [
+    "salon", "chambre", "cuisine", "salle de bain", "bureau", "entrée", "couloir",
+    "chambre parents", "chambre Mila", "chambre Rafi", "étage", "garage"
+]
+LOCATIONS_EN = [
+    "living room", "bedroom", "kitchen", "bathroom", "office", "hallway", "corridor",
+    "parents bedroom", "kids room", "upstairs", "garage"
+]
 
-VALUES = ["50%", "50", "100%", "0%", "maximum", "minimum", "moitié"]
+VALUES = ["50%", "50", "100%", "0%", "maximum", "minimum", "moitié", "20", "21", "22", "19"]
 
 # Edge case templates - IMPLICIT COMMANDS (context-dependent, should be control)
 IMPLICIT_CONTROL_FR = [
@@ -86,6 +102,9 @@ MINIMAL_CONTROL_FR = [
     "volet",
     "volets",
     "chauffage",
+    "thermostat",
+    "radiateur",
+    "température",
     "salon",
     "chambre",
     "cuisine",
@@ -97,6 +116,9 @@ MINIMAL_CONTROL_EN = [
     "shutter",
     "shutters",
     "heating",
+    "thermostat",
+    "radiator",
+    "temperature",
     "bedroom",
     "kitchen",
     "living room",
@@ -125,6 +147,10 @@ STATUS_QUERY_FR = [
     "est-ce que {article} {device} est allumée ?",
     "{article} {device} {location} est ouverte ?",
     "quelle est la température ?",
+    "quel est le réglage du chauffage ?",
+    "quel est le réglage des radiateurs ?",
+    "à combien est le thermostat ?",
+    "le chauffage est à combien ?",
     "montre-moi {article} {device}",
     "liste les {device}",
 ]
@@ -134,6 +160,9 @@ STATUS_QUERY_EN = [
     "is {article} {device} on?",
     "is {article} {device} in {location} open?",
     "what's the temperature?",
+    "what's the heating setting?",
+    "what's the thermostat set to?",
+    "what's the radiator setting?",
     "show me {article} {device}",
     "list {article} {device}",
 ]
@@ -146,6 +175,10 @@ INFO_QUERY_FR = [
     "comment contrôler les {device} ?",
     "parle-moi des {device}",
     "qu'est-ce qu'une {device} ?",
+    "quelle est la consommation d'eau ?",
+    "quelle est la consommation de gaz ?",
+    "combien d'électricité j'ai consommé ?",
+    "consommation électrique du jour",
 ]
 
 INFO_QUERY_EN = [
@@ -155,6 +188,10 @@ INFO_QUERY_EN = [
     "how do I control {article} {device}?",
     "tell me about {article} {device}",
     "what devices are in {location}?",
+    "what's the water consumption?",
+    "what's the gas consumption?",
+    "how much electricity have I used?",
+    "electricity consumption today",
 ]
 
 # Chat query templates
