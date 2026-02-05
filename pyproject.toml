@@ -48,7 +48,6 @@ packages = [
   "app.plugins.inventory",
   "app.plugins.inventory.sources",
   "app.plugins.actions",
-  "app.routing",
 ]
 
 [tool.uvicorn]
