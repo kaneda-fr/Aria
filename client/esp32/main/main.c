@@ -68,10 +68,10 @@ static void status_task(void *arg)
         else if (!(bits & WIFI_READY))
             on = now_ms % ARIA_DISCONNECTED_LED_PERIOD_MS < 100;
         else if (!(bits & STREAMING)) {
-            /* Two 100 ms on/off beats, then an extra 40 ms pulse; no long pause. */
-            int phase = now_ms % (2 * ARIA_DISCONNECTED_LED_PERIOD_MS + 100);
-            on = phase < 100 || (phase >= 200 && phase < 300) ||
-                 (phase >= 400 && phase < 440);
+            /* Flash for two beats, then omit two beats to distinguish Apollo. */
+            int phase = now_ms % (4 * ARIA_DISCONNECTED_LED_PERIOD_MS);
+            on = phase < 2 * ARIA_DISCONNECTED_LED_PERIOD_MS &&
+                 phase % ARIA_DISCONNECTED_LED_PERIOD_MS < 100;
         } else if (bits & AUDIO_FAULT) on = now_ms % 200 < 100;
         else if (now_ms < vad_flash_until_ms) on = true;
         else if (now_ms - last_tx_ms < 120) on = now_ms % 100 < 50;

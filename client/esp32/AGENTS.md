@@ -13,7 +13,7 @@ Read [README](README.md) and [D-009](../../docs/agents/decisions.md).
   and no audio/action replay. Request completion is not playback completion.
 - Wi-Fi/Apollo retries independently double 3 to 60 seconds and reset on success.
   LED stays on during connection attempts and blinks rapidly throughout retry
-  waits, with an extra short pulse every two beats for Apollo failures. Connected
+  waits; Apollo failures use two flashes followed by two skipped beats. Connected
   idle uses a slow heartbeat, with VAD/transmit activity taking over when active.
 - Compatibility with the existing Apollo `/ws/asr` protocol is mandatory. Do not
   require new acknowledgment, playback, or cancel frames for client-side features.

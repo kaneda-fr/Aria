@@ -112,7 +112,7 @@ Camera and SD stay disabled; GPIO21 is also the Sense SD chip-select pin.
 | --- | --- |
 | Steady on | Attempting a Wi-Fi or Apollo connection |
 | Continuous rapid blinking, 100 ms on / 100 ms off | Waiting to retry Wi-Fi |
-| Two rapid beats plus an extra short pulse, repeating every 500 ms | Wi-Fi ready, waiting to retry Apollo |
+| Two rapid flashes, then two skipped beats, repeating every 800 ms | Wi-Fi ready, waiting to retry Apollo |
 | Tiny flash every two seconds | Connected and idle |
 | Steady light for 250 ms | VAD opened a speech turn |
 | Rapid flicker, about 10 Hz | Audio frames successfully written to WebSocket |
@@ -120,8 +120,8 @@ Camera and SD stay disabled; GPIO21 is also the Sense SD chip-select pin.
 | Equal on/off flashes, about 5 Hz | Audio capture/queue fault |
 
 Connection patterns take precedence over fault and speech/transmit indications.
-The Apollo pattern is 100 ms on/off twice, followed by 40 ms on / 60 ms off.
-Disconnected patterns keep repeating without a long pause during the entire retry
+The Apollo pattern is 100 ms on/off twice, followed by two omitted 200 ms beats.
+Disconnected patterns keep repeating during the entire retry
 wait, independently of how long that wait has grown; each actual connection attempt
 holds the light on until success, failure or timeout. The orange user LED is firmware-controlled; the
 red charge indicator is controlled by the charging circuit. Seeed documents the
