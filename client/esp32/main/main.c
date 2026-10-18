@@ -26,7 +26,7 @@
 
 static const char *TAG = "aria_mic";
 enum { WIFI_READY = BIT0, WS_READY = BIT1, STREAMING = BIT2, AUDIO_FAULT = BIT3,
-       VAD_ACTIVE = BIT4, TX_ACTIVITY = BIT5 };
+       VAD_ACTIVE = BIT4, TX_ACTIVITY = BIT5, CONNECTING = BIT6 };
 static EventGroupHandle_t events;
 static QueueHandle_t audio_queue;
 static QueueHandle_t diagnostics_queue;
@@ -64,12 +64,16 @@ static void status_task(void *arg)
         if (vad_active && !was_vad_active) vad_flash_until_ms = now_ms + 250;
         was_vad_active = vad_active;
         bool on;
-        if (bits & AUDIO_FAULT) on = now_ms % 200 < 100;
-        else if (!(bits & WIFI_READY)) on = now_ms % ARIA_DISCONNECTED_LED_PERIOD_MS < 150;
+        if (bits & CONNECTING) on = true;
+        else if (!(bits & WIFI_READY))
+            on = now_ms % ARIA_DISCONNECTED_LED_PERIOD_MS < 100;
         else if (!(bits & STREAMING)) {
-            int phase = now_ms % ARIA_DISCONNECTED_LED_PERIOD_MS;
-            on = phase < 100 || (phase >= 250 && phase < 350);
-        } else if (now_ms < vad_flash_until_ms) on = true;
+            /* Two 100 ms on/off beats, then an extra 40 ms pulse; no long pause. */
+            int phase = now_ms % (2 * ARIA_DISCONNECTED_LED_PERIOD_MS + 100);
+            on = phase < 100 || (phase >= 200 && phase < 300) ||
+                 (phase >= 400 && phase < 440);
+        } else if (bits & AUDIO_FAULT) on = now_ms % 200 < 100;
+        else if (now_ms < vad_flash_until_ms) on = true;
         else if (now_ms - last_tx_ms < 120) on = now_ms % 100 < 50;
         else if (bits & VAD_ACTIVE) on = true;
         else on = now_ms % 2000 < 40;
@@ -96,6 +100,7 @@ _Static_assert(sizeof(ARIA_HOSTNAME_PREFIX) > 1 && sizeof(ARIA_HOSTNAME_PREFIX) 
 static void wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
     if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
+        xEventGroupClearBits(events, CONNECTING);
         xEventGroupSetBits(events, WIFI_READY);
         const ip_event_got_ip_t *ip = data;
         wifi_ap_record_t ap = {0};
@@ -104,7 +109,7 @@ static void wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data)
                      IP2STR(&ip->ip_info.ip), ap.rssi, ap.primary);
         else ESP_LOGI(TAG, "Wi-Fi ready ip=" IPSTR, IP2STR(&ip->ip_info.ip));
     } else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) {
-        xEventGroupClearBits(events, WIFI_READY | STREAMING);
+        xEventGroupClearBits(events, WIFI_READY | STREAMING | CONNECTING);
         const wifi_event_sta_disconnected_t *disconnected = data;
         ESP_LOGW(TAG, "Wi-Fi disconnected reason=%u; audio will not be replayed",
                  disconnected->reason);
@@ -117,7 +122,7 @@ static void websocket_event(void *arg, esp_event_base_t base, int32_t id, void *
         xEventGroupSetBits(events, WS_READY);
     } else if (id == WEBSOCKET_EVENT_DISCONNECTED || id == WEBSOCKET_EVENT_ERROR ||
                id == WEBSOCKET_EVENT_CLOSED) {
-        xEventGroupClearBits(events, WS_READY | STREAMING);
+        xEventGroupClearBits(events, WS_READY | STREAMING | CONNECTING);
     } else if (id == WEBSOCKET_EVENT_DATA) {
         const esp_websocket_event_data_t *event = data;
         const char *text = aria_text_push(&status_buffer, event->op_code, event->fin,
@@ -348,6 +353,7 @@ static bool run_session(void)
     }
     frontend_started = true;
     xQueueReset(audio_queue);
+    xEventGroupClearBits(events, CONNECTING);
     xEventGroupSetBits(events, STREAMING);
     ESP_LOGI(TAG, "Streaming 16 kHz mono PCM16; local VAD=%d AGC=%d; existing Apollo protocol",
              ARIA_CLIENT_VAD, ARIA_CLIENT_AGC);
@@ -387,7 +393,7 @@ static bool run_session(void)
         }
     }
 cleanup:
-    xEventGroupClearBits(events, STREAMING | VAD_ACTIVE | TX_ACTIVITY);
+    xEventGroupClearBits(events, STREAMING | VAD_ACTIVE | TX_ACTIVITY | CONNECTING);
     /* Never replay old audio or invent an utterance_end after transport loss.
      * Existing Apollo finalizes open client-VAD audio on disconnect; this client
      * cannot cancel that partial request through the existing protocol. */
@@ -419,13 +425,17 @@ void app_main(void)
     for (;;) {
         if (!(xEventGroupGetBits(events) & WIFI_READY)) {
             unsigned delay_ms = aria_retry_wait_ms(&wifi_retry_ms, false);
-            esp_wifi_connect();
+            xEventGroupSetBits(events, CONNECTING);
+            if (esp_wifi_connect() != ESP_OK) xEventGroupClearBits(events, CONNECTING);
             ESP_LOGI(TAG, "Wi-Fi reconnect wait: %u ms", delay_ms);
             xEventGroupWaitBits(events, WIFI_READY, pdFALSE, pdTRUE,
                                 pdMS_TO_TICKS(delay_ms));
+            xEventGroupClearBits(events, CONNECTING);
         } else {
             wifi_retry_ms = 0;
+            xEventGroupSetBits(events, CONNECTING);
             bool connected = run_session();
+            xEventGroupClearBits(events, CONNECTING);
             unsigned delay_ms = aria_retry_wait_ms(&apollo_retry_ms, connected);
             ESP_LOGW(TAG, "Session ended; Apollo retry in %u ms", delay_ms);
             vTaskDelay(pdMS_TO_TICKS(delay_ms));

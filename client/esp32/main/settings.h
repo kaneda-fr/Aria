@@ -34,7 +34,7 @@
 #define ARIA_SEND_TIMEOUT_MS 100
 #define ARIA_RETRY_INITIAL_MS 3000
 #define ARIA_RETRY_MAX_MS 60000
-#define ARIA_DISCONNECTED_LED_PERIOD_MS 5000
+#define ARIA_DISCONNECTED_LED_PERIOD_MS 200
 #define ARIA_CONNECT_TIMEOUT_MS 5000
 
 /* Compile-time microphone processing, matching the Mac client's feature set. */
