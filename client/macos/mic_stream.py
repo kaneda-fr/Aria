@@ -7,6 +7,8 @@ import contextlib
 import json
 import os
 import signal
+import socket
+import re
 import sys
 from dataclasses import dataclass
 from typing import Any
@@ -141,8 +143,16 @@ async def _recv_loop(ws: Any, stop_event: asyncio.Event) -> None:
         async for _message in ws:
             if stop_event.is_set():
                 return
-            # Ignore any unexpected messages.
-            continue
+            if isinstance(_message, str):
+                try:
+                    payload = json.loads(_message)
+                except (ValueError, TypeError):
+                    continue
+                if isinstance(payload, dict) and payload.get('type') == 'request_status':
+                    print(f"ARIA request status: {str(payload.get('status', 'unknown'))[:32]}", flush=True)
+                elif isinstance(payload, dict) and payload.get('type') in {'session_started', 'session_error'}:
+                    print('ARIA session: ' + json.dumps(payload, ensure_ascii=False), flush=True)
+        stop_event.set()
     except asyncio.CancelledError:
         raise
     except Exception:
@@ -181,7 +191,9 @@ async def _send_loop(
     vad = None
     vad_frame_ms = 20
     vad_frame_bytes = int(contract.sample_rate * 2 * vad_frame_ms / 1000)
-    vad_silence_ms = int(os.environ.get("ARIA_CLIENT_VAD_SILENCE_MS", "300"))
+    # A sentence pause is not necessarily the end of the user's turn. Keep
+    # endpointing on audio time (not queue/network delays), with bounded hangover.
+    vad_silence_ms = max(200, min(3000, int(os.environ.get("ARIA_CLIENT_VAD_SILENCE_MS", "800"))))
     vad_aggr = int(os.environ.get("ARIA_CLIENT_VAD_AGGR", "2"))
     vad_pre_ms = int(os.environ.get("ARIA_CLIENT_VAD_PRE_MS", "200"))
     vad_start_frames = int(os.environ.get("ARIA_CLIENT_VAD_START_FRAMES", "3"))
@@ -454,7 +466,17 @@ async def _send_loop(
         return
 
 
+def client_name() -> str:
+    default = 'aria-mac-' + re.sub(r'[^a-z0-9._-]', '-', socket.gethostname().split('.')[0].lower())[:55]
+    name = os.environ.get('ARIA_CLIENT_ID', default)
+    if not re.fullmatch(r'[a-z0-9][a-z0-9._-]{0,63}', name):
+        raise ValueError('ARIA_CLIENT_ID must be a unique lowercase name of 1..64 characters')
+    return name
+
+
 async def run_client(url: str, contract: AriaAudioContract, *, device: str | None) -> int:
+    identity = client_name()
+    print(f'ARIA client: {identity}', flush=True)
     ws_url = _normalize_ws_url(url)
     loop = asyncio.get_running_loop()
     stop_event = asyncio.Event()
@@ -528,6 +550,7 @@ async def run_client(url: str, contract: AriaAudioContract, *, device: str | Non
 
         start_msg = {
             "type": "start",
+            "client_id": identity,
             "sample_rate": contract.sample_rate,
             "channels": contract.channels,
             "format": contract.fmt,
@@ -580,10 +603,17 @@ async def run_client(url: str, contract: AriaAudioContract, *, device: str | Non
                     with contextlib.suppress(asyncio.CancelledError):
                         await recv_task
         except Exception:
-            if stop_event.is_set():
-                break
-            print(f"ARIA: connection lost, retrying in {reconnect_delay:.0f}s", file=sys.stderr, flush=True)
-            await asyncio.sleep(reconnect_delay)
+            pass
+
+        if stop_event.is_set():
+            break
+        # Clean closes and rejected sessions need the same backoff as failures.
+        # Waiting on stop keeps SIGINT/SIGTERM responsive during that delay.
+        print(f"ARIA: connection lost, retrying in {reconnect_delay:.0f}s", file=sys.stderr, flush=True)
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=reconnect_delay)
+        except asyncio.TimeoutError:
+            pass
 
     if dropped:
         print(f"Dropped {dropped} audio chunks due to backpressure", file=sys.stderr)

@@ -1,3 +1,7 @@
+> **Historical roadmap.** Implementation has advanced beyond this snapshot. Read
+> [current evidence](docs/agents/status.md) and [open decisions](docs/agents/decisions.md)
+> before using the completion labels or phase plan below.
+
 # Aria Plugin System Implementation Roadmap
 
 > **Status**: Ready to implement

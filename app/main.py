@@ -13,7 +13,8 @@ from uuid import uuid4
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, WebSocket, Body, HTTPException
+from pydantic import StrictBool
 
 from app.asr.parakeet_onnx import ParakeetOnnx
 from app.aria_logging import get_logger
@@ -22,13 +23,15 @@ from app.audio.ringbuffer import RingBuffer
 from app.audio.vad import VadConfig, VoiceActivityDetector
 from app.http_audio.server import build_tts_router
 from app.llm.ollama_client import SYSTEM_PROMPT, generate_llm_response, llm_enabled, load_llm_config
+from app.llm.request_queue import AssistantRequest, RequestQueue
+from app.llm.conversation import ConversationGate, conversation_turn
 from app.plugins.registry import PluginRegistry
 from app.plugins.inventory import InventoryProvider
 from app.plugins.actions import ActionsProvider
 from app.routing import get_router
 from app.speaker_recognition.recognizer import SpeakerRecognizer
 from app.speech_output.echo_guard_v2 import EchoGuardV2
-from app.speech_output.speech_output import maybe_build_speech_output
+from app.speech_output.speech_output import detect_language, maybe_build_speech_output
 
 
 def _pcm16_stats(pcm16le: bytes, *, sample_rate: int = 16000) -> tuple[float, float]:
@@ -141,6 +144,7 @@ async def lifespan(app: FastAPI):
     app.state.llm_worker_task = None
     app.state.llm_history = {}
     app.state.llm_history_lock = asyncio.Lock()
+    app.state.conversation_gate = ConversationGate.from_env()
     app.state.speech_output = None
     app.state.tts_cache_dir = None
     app.state.echo_guard = EchoGuardV2()
@@ -151,8 +155,14 @@ async def lifespan(app: FastAPI):
 
             app.state.llm_config = load_llm_config()
             app.state.llm_client = httpx.AsyncClient(timeout=app.state.llm_config.timeout_s)
+            from app.llm.ollama_template import prepare_tool_template
+            app.state.llm_config = await prepare_tool_template(app.state.llm_config, app.state.llm_client)
             # Bounded queue prevents unbounded task accumulation; enqueue is non-blocking.
-            app.state.llm_queue = asyncio.Queue(maxsize=1)
+            app.state.llm_queue = RequestQueue(
+                capacity=int(os.environ.get("ARIA_REQUEST_QUEUE_CAPACITY", "1")),
+                max_wait_s=float(os.environ.get("ARIA_REQUEST_MAX_WAIT_S", "30")),
+                on_event=_request_event,
+            )
             app.state.llm_worker_task = asyncio.create_task(_llm_worker(app))
             cfg = app.state.llm_config
             log.info(
@@ -167,6 +177,8 @@ async def lifespan(app: FastAPI):
             )
     except Exception as e:
         # Never fail server startup due to LLM wiring.
+        if app.state.llm_client is not None:
+            await app.state.llm_client.aclose()
         app.state.llm_client = None
         app.state.llm_config = None
         log.info("ARIA.LLM.NotEnabled", extra={"fields": {"error": repr(e)}})
@@ -311,7 +323,16 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    # Cleanup: Stop plugins first (before other resources)
+    # Stop request execution before the providers it may be using.
+    queue = getattr(app.state, "llm_queue", None)
+    if queue is not None:
+        queue.closing = True
+    worker = getattr(app.state, "llm_worker_task", None)
+    if worker is not None:
+        worker.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await worker
+
     plugin_registry = getattr(app.state, "plugin_registry", None)
     if plugin_registry is not None:
         try:
@@ -320,12 +341,6 @@ async def lifespan(app: FastAPI):
             log.info("ARIA.Plugins.Stopped")
         except Exception as e:
             log.error("ARIA.Plugins.StopError", extra={"fields": {"error": repr(e)}})
-
-    worker = getattr(app.state, "llm_worker_task", None)
-    if worker is not None:
-        worker.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await worker
 
     client = getattr(app.state, "llm_client", None)
     if client is not None:
@@ -482,123 +497,96 @@ async def execute_action(request: dict[str, Any]) -> dict[str, Any]:
 
 @app.post("/api/llm/process")
 async def process_text(request: dict[str, Any]) -> dict[str, Any]:
-    """
-    Process text through the LLM pipeline (bypassing ASR) with tool calling.
+    """Admit text to the same bounded worker used by final voice transcripts.
 
-    Request body:
-        {
-            "text": str,                    # Required: Text to process
-            "session_id": str | None,       # Optional: Session ID for history
-            "speaker_user": str | None,     # Optional: Speaker identifier (default: "unknown")
-            "speak_response": bool,         # Optional: Speak response via TTS (default: false)
-            "use_tools": bool               # Optional: Enable tool calling (default: true)
-        }
-
-    Response:
-        {
-            "success": bool,
-            "text": str,                    # Input text
-            "response": str,                # LLM response
-            "error": str | None,
-            "spoken": bool,                 # Whether response was spoken via TTS
-            "tool_calls_made": int          # Number of tool calls executed
-        }
+    Existing fields remain; replies add request_id/status. Full queues return 429;
+    expired pending work returns 504 without execution.
     """
+    from fastapi import HTTPException
+    from fastapi.responses import JSONResponse
+
+    text = request.get("text")
+    if not isinstance(text, str) or not text.strip():
+        raise HTTPException(400, "Missing or invalid 'text' parameter")
+    session_id = request.get("session_id")
+    if session_id is not None and not isinstance(session_id, str):
+        raise HTTPException(400, "session_id must be a string")
+    if session_id is not None and len(session_id) > 256:
+        raise HTTPException(400, "session_id must be at most 256 characters")
+    speaker_user = request.get("speaker_user", "unknown")
+    if not isinstance(speaker_user, str):
+        raise HTTPException(400, "speaker_user must be a string")
+    for key in ("speak_response", "use_tools"):
+        if key in request and not isinstance(request[key], bool):
+            raise HTTPException(400, f"{key} must be a boolean")
+    queue = getattr(app.state, "llm_queue", None)
+    if queue is None:
+        raise HTTPException(503, "LLM not enabled")
+    job = queue.submit(text=text.strip(), session_id=session_id, speaker_user=speaker_user,
+                       speak_response=request.get("speak_response", False),
+                       use_tools=request.get("use_tools", True), source="api")
+    try:
+        result = await asyncio.shield(job.result)
+    except asyncio.CancelledError:
+        queue.cancel_pending(job)
+        raise
+    error = result.get("error")
+    status_code = {"busy": 429, "shutdown": 503, "queue_expired": 504,
+                   "caller_cancelled": 409, "execution_interrupted": 503}.get(error)
+    if status_code is None and result["status"] == "failed":
+        status_code = 500
+    if status_code is not None:
+        return JSONResponse(result, status_code=status_code,
+                            headers={"Retry-After": "1"} if error == "busy" else None)
+    return result
+
+
+@conversation_turn
+async def _process_request(app: FastAPI, job: AssistantRequest) -> dict[str, Any]:
+    """The single conversation/tool/history/speech path for both transports."""
+    from app.llm.control import ControlMemory, Plan, resolve, render
+    from app.llm.local_answers import clock_answer, capability_answer
+    from app.llm.lookup_reply import render_lookup_results
+    from app.llm.history_prefill import cancel_prefill, schedule_prefill
+
+    await cancel_prefill(app.state)
     from fastapi import HTTPException
     from app.llm.tools import TOOLS, execute_tool, format_tool_result_for_llm
     from app.plugins.tooling_provider import ToolingProvider
-    from app.plugins.actions import ActionsProvider
 
-    # Extract parameters
-    text = request.get("text")
-    if not text or not isinstance(text, str):
-        raise HTTPException(status_code=400, detail="Missing or invalid 'text' parameter")
-
-    text = text.strip()
-    if not text:
-        raise HTTPException(status_code=400, detail="Text cannot be empty")
-
-    session_id = request.get("session_id")
-    speaker_user = request.get("speaker_user", "unknown")
-    speak_response = request.get("speak_response", False)
-    use_tools = request.get("use_tools", True)
-
-    # Router: Classify text as CHAT vs CONTROL
-    router = getattr(app.state, "router", None)
-    if router is not None:
-        try:
-            decision = router.classify(text)
-
-            log.info(
-                "ARIA.Router.Decision",
-                extra={
-                    "fields": {
-                        "text": text[:50] + "..." if len(text) > 50 else text,
-                        "mode": decision.mode,
-                        "detected_lang": decision.detected_lang,
-                        "confidence": round(decision.confidence, 3),
-                        "distance_to_control": round(decision.distance_to_control, 3),
-                        "distance_to_chat": round(decision.distance_to_chat, 3),
-                        "latency_ms": round(decision.latency_ms, 1),
-                        "reasoning": decision.reasoning
-                    }
-                }
-            )
-
-            # If classified as CHAT with high confidence, respond directly without LLM
-            if decision.mode == "chat":
-                # Simple conversational responses
-                chat_responses = {
-                    # Greetings (French)
-                    "bonjour": "Bonjour! Comment puis-je vous aider?",
-                    "bonsoir": "Bonsoir!",
-                    "salut": "Salut!",
-                    "bonne nuit": "Bonne nuit!",
-                    "coucou": "Coucou!",
-
-                    # Greetings (English)
-                    "hello": "Hello! How can I help you?",
-                    "hi": "Hi there!",
-                    "hey": "Hey!",
-                    "good morning": "Good morning!",
-                    "good evening": "Good evening!",
-                    "good night": "Good night!",
-
-                    # Thanks (French)
-                    "merci": "De rien!",
-                    "merci beaucoup": "Je vous en prie!",
-
-                    # Thanks (English)
-                    "thank you": "You're welcome!",
-                    "thanks": "You're welcome!",
-
-                    # Other
-                    "au revoir": "Au revoir!",
-                    "goodbye": "Goodbye!",
-                    "à bientôt": "À bientôt!",
-                }
-
-                # Find matching response (case-insensitive)
-                response_text = chat_responses.get(text.lower().strip(), "Bonjour! Comment puis-je vous aider?")
-
-                return {
-                    "success": True,
-                    "text": text,
-                    "response": response_text,
-                    "error": None,
-                    "spoken": False,
-                    "tool_calls_made": 0
-                }
-
-            # If CONTROL or UNKNOWN, proceed to LLM with tools
-            log.info(
-                "ARIA.Router.Proceeding",
-                extra={"fields": {"mode": decision.mode, "reason": "Requires LLM processing"}}
-            )
-
-        except Exception as e:
-            log.error("ARIA.Router.ClassifyError", extra={"fields": {"error": repr(e)}})
-            # Continue to LLM on router error
+    text = job.conversation_text if job.conversation_text is not None else job.text
+    session_id, speaker_user = job.session_id, job.speaker_user
+    speak_response, use_tools = job.speak_response, job.use_tools
+    language = detect_language(text)
+    log.info("ARIA.LLM.Start", extra={"fields": {
+        "request_id": job.request_id, "session_id": session_id, "source": job.source, "language": language,
+        "transcript_len": len(text), "queue_pending": app.state.llm_queue.pending.qsize()}})
+    if os.environ.get("ARIA_LLM_DEBUG", "").strip().lower() not in {"", "0", "false"}:
+        max_chars = max(0, int(os.environ.get("ARIA_LLM_DEBUG_MAX_CHARS", "800")))
+        user_line = f"[speaker={speaker_user}] {text}"
+        log.info("ARIA.LLM.Request", extra={"fields": {
+            "request_id": job.request_id, "source": job.source, "system": SYSTEM_PROMPT[:300],
+            "user": user_line[:max_chars], "transcript_len": len(text)}})
+    from app.llm.client_mute import MuteCommands
+    mute_commands = getattr(app.state, 'mute_commands', None)
+    if mute_commands is None:
+        mute_commands = app.state.mute_commands = MuteCommands()
+    mute_reply = mute_commands.handle(text, session_id, speaker_user,
+                                      getattr(app.state, 'client_sessions', None))
+    if mute_reply is not None:
+        log.info('ARIA.Session.MuteCommand', extra={'fields': {
+            'request_id': job.request_id, 'session_id': session_id,
+            'client_id': mute_reply.client_id, 'status': mute_reply.status,
+            'duration_s': mute_reply.seconds}})
+        spoken = await _speak_reply(app, mute_reply.text, mute_reply.language) if speak_response else False
+        return {'success': True, 'text': text, 'response': mute_reply.text,
+                'error': None, 'spoken': spoken, 'tool_calls_made': 0,
+                'mute_status': mute_reply.status}
+    shortcut = _chat_shortcut(app, text)
+    if shortcut is not None:
+        spoken = await _speak_reply(app, shortcut, language) if speak_response else False
+        return {"success": True, "text": text, "response": shortcut, "error": None,
+                "spoken": spoken, "tool_calls_made": 0}
 
     # Check if LLM is enabled
     llm_config = getattr(app.state, "llm_config", None)
@@ -642,17 +630,54 @@ async def process_text(request: dict[str, Any]) -> dict[str, Any]:
         max_iterations = 5
         t0 = time.monotonic()
         final_response = ""
+        iteration = -1
+        control_plan = None
+        action_result = None
+        local_answer = clock_answer(text) or capability_answer(
+            text, inventory_provider, actions_provider, tools_enabled=use_tools)
+        if local_answer is not None:
+            final_response, language = local_answer.text, local_answer.language
+            log.info("ARIA.Local.Answer", extra={"fields": {
+                "request_id": job.request_id, "kind": local_answer.kind}})
+        if use_tools and local_answer is None:
+            memory = getattr(app.state, "control_memory", None)
+            if memory is None:
+                memory = app.state.control_memory = ControlMemory()
+            reference_key = (session_id, speaker_user)
+            control_plan = resolve(text, inventory_provider, memory.get(reference_key))
+            if control_plan is not None:
+                language = control_plan.language
+                log.info("ARIA.Control.Resolved", extra={"fields": {
+                    "request_id": job.request_id, "status": control_plan.status,
+                    "command": control_plan.command}})
+                if control_plan.status == "ready":
+                    grant = control_plan.authorization
+                    tool_calls_made = 1
+                    action_result = await execute_tool(
+                        tool_name="execute_command",
+                        tool_args={"cmd_id": grant.cmd_id, **({"value": grant.value} if grant.value is not None else {})},
+                        inventory_provider=inventory_provider, actions_provider=actions_provider,
+                        authorization=grant)
+                    if action_result.get("success"):
+                        memory.remember(reference_key, grant.device_id)
+                    else:
+                        memory.forget(reference_key)
+                else:
+                    memory.forget(reference_key)
+                final_response = render(control_plan, action_result)
 
-        for iteration in range(max_iterations):
+        for iteration in range(0 if control_plan is not None or local_answer is not None else max_iterations):
             # Generate LLM response with tools
             llm_result = await generate_llm_response(
                 text=text,
                 messages=messages,
                 config=llm_config,
                 client=llm_client,
-                tools=TOOLS if use_tools else None,
+                tools=TOOLS if use_tools and inventory_provider is not None else None,
             )
 
+            app.state.llm_recent_session = session_id
+            app.state.llm_recent_at = time.monotonic()
             response_content = llm_result.get("content", "")
             tool_calls = llm_result.get("tool_calls")
 
@@ -668,6 +693,10 @@ async def process_text(request: dict[str, Any]) -> dict[str, Any]:
                 "tool_calls": tool_calls
             })
 
+            # A read-only search batch is grounded evidence, not another generation task.
+            lookup_results = []
+            lookup_only = all(call.get('function', {}).get('name') == 'find_devices'
+                              for call in tool_calls)
             # Execute each tool call
             for tool_call in tool_calls:
                 tool_calls_made += 1
@@ -695,16 +724,33 @@ async def process_text(request: dict[str, Any]) -> dict[str, Any]:
                     inventory_provider=inventory_provider,
                     actions_provider=actions_provider
                 )
+                if tool_name == "execute_command":
+                    # No server-grounded action exists on this conversation path.
+                    # Do not let another generated reply invent execution success.
+                    final_response = render(Plan("unsupported", language))
+                    break
+
+                if lookup_only:
+                    lookup_results.append(tool_result)
+                    continue
 
                 # Format result for LLM
-                tool_result_text = format_tool_result_for_llm(tool_result)
+                tool_result_text = format_tool_result_for_llm(tool_result, language=language)
 
                 # Add tool result to messages
                 messages.append({
                     "role": "tool",
                     "content": tool_result_text,
-                    "name": tool_name
+                    "name": tool_name,
+                    "tool_name": tool_name,
                 })
+            if lookup_only:
+                final_response = render_lookup_results(lookup_results, language=language)
+                log.info('ARIA.Lookup.Reply', extra={'fields': {
+                    'request_id': job.request_id, 'searches': len(lookup_results),
+                    'language': language, 'model_round_trip_saved': True}})
+            if final_response:
+                break
 
         dt_ms = int((time.monotonic() - t0) * 1000)
 
@@ -726,7 +772,7 @@ async def process_text(request: dict[str, Any]) -> dict[str, Any]:
         if not final_response:
             log.info(
                 "ARIA.LLM.EmptyResponse",
-                extra={"fields": {"ms": dt_ms, "transcript_len": len(text), "source": "api", "tool_calls_made": tool_calls_made}}
+                extra={"fields": {"ms": dt_ms, "transcript_len": len(text), "source": job.source, "request_id": job.request_id, "tool_calls_made": tool_calls_made}}
             )
             return {
                 "success": False,
@@ -745,11 +791,12 @@ async def process_text(request: dict[str, Any]) -> dict[str, Any]:
                     "transcript_len": len(text),
                     "response_len": len(final_response),
                     "tool_calls_made": tool_calls_made,
-                    "source": "api"
+                    "source": job.source, "request_id": job.request_id
                 }
             },
         )
 
+        prefill_messages = None
         # Update history if session_id provided
         if history_max > 0 and session_id:
             history_lock = getattr(app.state, "llm_history_lock", None)
@@ -762,17 +809,15 @@ async def process_text(request: dict[str, Any]) -> dict[str, Any]:
                         history_map[session_id] = history
                     history.append({"role": "user", "content": user_content})
                     history.append({"role": "assistant", "content": final_response})
+                    prefill_messages = [{"role": "system", "content": SYSTEM_PROMPT}, *list(history)]
 
         # Optional TTS
-        spoken = False
-        if speak_response:
-            speech = getattr(app.state, "speech_output", None)
-            if speech is not None:
-                try:
-                    await speech.speak(final_response)
-                    spoken = True
-                except Exception as e:
-                    log.info("ARIA.TTS.Error", extra={"fields": {"error": repr(e)}})
+        spoken = await _speak_reply(app, final_response, language) if speak_response else False
+        if local_answer is not None and spoken and prefill_messages is not None:
+            schedule_prefill(app.state, session_id=session_id, messages=prefill_messages,
+                             tools=TOOLS if use_tools and inventory_provider is not None else None,
+                             audio_ready=getattr(app.state.speech_output, "audio_ready", None),
+                             request_id=job.request_id)
 
         return {
             "success": True,
@@ -780,20 +825,56 @@ async def process_text(request: dict[str, Any]) -> dict[str, Any]:
             "response": final_response,
             "error": None,
             "spoken": spoken,
-            "tool_calls_made": tool_calls_made
+            "tool_calls_made": tool_calls_made,
+            "control_status": control_plan.status if control_plan else None,
+            "action_outcome": action_result.get("outcome") if action_result else None,
         }
 
     except Exception as e:
         log.error(
             "ARIA.LLM.Error",
-            extra={"fields": {"error": repr(e), "transcript_len": len(text), "source": "api"}},
+            extra={"fields": {"error": repr(e), "transcript_len": len(text), "source": job.source, "request_id": job.request_id}},
         )
-        raise HTTPException(status_code=500, detail=f"LLM processing error: {str(e)}")
+        raise
+
+
+@app.get("/api/clients")
+async def client_status() -> dict:
+    registry = getattr(app.state, "client_sessions", None)
+    return {"clients": registry.snapshot() if registry else []}
+
+
+@app.post("/api/clients/clear-offline")
+async def clear_offline_clients() -> dict:
+    registry = getattr(app.state, "client_sessions", None)
+    cleared = registry.clear_offline() if registry else []
+    log.info("ARIA.Session.ClearOffline", extra={"fields": {"cleared_count": len(cleared)}})
+    return {"cleared": cleared, "clients": registry.snapshot() if registry else []}
+
+
+@app.post("/api/clients/{client_id}/mute")
+async def mute_client(client_id: str, muted: StrictBool = Body(embed=True, strict=True)) -> dict:
+    registry = getattr(app.state, "client_sessions", None)
+    if registry is None or client_id not in registry.known:
+        raise HTTPException(404, "Unknown client")
+    commands = getattr(app.state, 'mute_commands', None)
+    if commands is not None:
+        commands.forget_session('client:' + client_id)
+    status = registry.set_muted(client_id, muted)
+    log.info("ARIA.Session.Mute", extra={"fields": {
+        "client_id": client_id, "session_id": "client:" + client_id, **status}})
+    return {"client_id": client_id, **status}
 
 
 @app.websocket("/ws/asr")
 async def ws_asr(ws: WebSocket) -> None:
+    from app.client_sessions import ClientSessions, validate_client_id
     session_id = uuid4().hex
+    connection_id = session_id
+    client_id = None
+    client_sessions = getattr(app.state, "client_sessions", None)
+    if client_sessions is None:
+        client_sessions = app.state.client_sessions = ClientSessions()
     await ws.accept()
     log.info("ARIA.Session.Connected", extra={"fields": {"session_id": session_id}})
 
@@ -825,14 +906,27 @@ async def ws_asr(ws: WebSocket) -> None:
     partial_state: dict[str, str] = {"last_text": ""}
 
     utterance_gen = 0
+    utterance_started_at: float | None = None
     partial_task: asyncio.Task[None] | None = None
+    mute_revision = 0
+
+    status_lock = asyncio.Lock()
+
+    async def _send_status(message: dict) -> None:
+        try:
+            async with status_lock:
+                identity = {"client_id": client_id, "connection_id": connection_id} if client_id else {}
+                await asyncio.wait_for(ws.send_json({**message, **identity}), timeout=.2)
+        except Exception:
+            pass  # Terminal state is also recorded in structured server logs.
 
     async def _start_utterance() -> None:
-        nonlocal buffering, utterance_gen, last_partial_at
+        nonlocal buffering, utterance_gen, last_partial_at, utterance_started_at
         utterance_gen += 1
         audio.clear()
         buffering = True
         last_partial_at = time.monotonic()
+        utterance_started_at = last_partial_at
         partial_state["last_text"] = ""
         log.info(
             "ARIA.Utterance.Started",
@@ -847,6 +941,10 @@ async def ws_asr(ws: WebSocket) -> None:
         wav_bytes = audio.get_bytes()
         audio.clear()
         buffering = False
+
+        revision = client_sessions.mute_revision(client_id)
+        if client_sessions.is_muted(client_id) or revision != mute_revision:
+            return
 
         should_asr, asr_metrics = _should_run_asr(wav_bytes)
 
@@ -874,6 +972,9 @@ async def ws_asr(ws: WebSocket) -> None:
                 )
                 text_out = ""
 
+        if client_sessions.is_muted(client_id) or client_sessions.mute_revision(client_id) != revision:
+            return
+
         # Drop common filler hallucinations for low-speech utterances.
         text_out = _filter_transcript(
             text_out,
@@ -885,6 +986,7 @@ async def ws_asr(ws: WebSocket) -> None:
 
         should_enqueue = True
         speaker_user = "unknown"
+        spk_result = None
         if text_out:
             spk = getattr(app.state, "spk_recognizer", None)
             if spk is not None and getattr(spk, "enabled", False):
@@ -925,57 +1027,63 @@ async def ws_asr(ws: WebSocket) -> None:
                             }
                         },
                     )
-                    # Suppress if speaker is aria to prevent feedback loop
-                    if speaker_user == "aria":
+                    # Nearest identity is independent of confidence. Only a
+                    # confident self match may reject speech; keep raw scores above.
+                    from app.speaker_recognition.recognizer import self_speech_decision
+                    speaker_user, suppress_self = self_speech_decision(
+                        spk_result, getattr(spk, "self_names", ()),
+                        getattr(spk, "self_min_score", 0.75))
+                    if suppress_self:
                         should_enqueue = False
+                    if spk_result.user.lower() == "aria" or suppress_self:
                         log.info(
-                            "ARIA.SPK: suppressed_aria_speaker",
-                            extra={
-                                "fields": {
-                                    "session_id": session_id,
-                                    "utterance": utterance_gen,
-                                    "name": spk_result.name,
-                                    "score": spk_result.score,
-                                    "user": speaker_user,
-                                }
-                            },
+                            "ARIA.SPK: suppressed_self_speech" if suppress_self else
+                            "ARIA.SPK: uncertain_self_match",
+                            extra={"fields": {
+                                "session_id": session_id, "utterance": utterance_gen,
+                                "name": spk_result.name, "score": spk_result.score,
+                                "known": spk_result.known, "user": speaker_user,
+                                "self_min_score": getattr(spk, "self_min_score", 0.75),
+                            }},
                         )
-                    else:
-                        # Suppress if self speech (existing logic)
-                        self_names = {n.lower() for n in getattr(spk, "self_names", ())}
-                        name_lc = spk_result.name.lower()
-                        if (
-                            spk_result.known
-                            and name_lc in self_names
-                            and spk_result.score >= getattr(spk, "self_min_score", 0.0)
-                        ):
-                            should_enqueue = False
-                            log.info(
-                                "ARIA.SPK: suppressed_self_speech",
-                                extra={
-                                    "fields": {
-                                        "session_id": session_id,
-                                        "utterance": utterance_gen,
-                                        "name": spk_result.name,
-                                        "score": spk_result.score,
-                                    }
-                                },
-                            )
 
             if should_enqueue:
                 echo_guard = getattr(app.state, "echo_guard", None)
                 if echo_guard is not None and echo_guard.enabled:
-                    suppress, info = echo_guard.should_suppress(text_out, time.time())
-                    info = {**info, "session_id": session_id, "utterance": utterance_gen}
+                    echo_now = time.time()
+                    onset_ts = echo_now - max(0.0, time.monotonic() - utterance_started_at)
+                    suppress, info = echo_guard.should_suppress(
+                        text_out, echo_now, speaker_user, onset_ts)
+                    info = {**info, "session_id": session_id, "utterance": utterance_gen,
+                            "client_id": client_id, "speaker_user": speaker_user,
+                            "speaker_score": spk_result.score if spk_result is not None else None}
                     if suppress:
                         should_enqueue = False
                         log.info("ARIA.ECHO_V2: suppressed", extra={"fields": info})
                     else:
                         log.info("ARIA.ECHO_V2: allowed", extra={"fields": info})
 
+            if client_sessions.is_muted(client_id) or client_sessions.mute_revision(client_id) != revision:
+                return
+
             if should_enqueue:
                 print(f"ARIA.TRANSCRIPT: {text_out}", flush=True)
-                _enqueue_final_llm(app, text_out, session_id, speaker_user)
+                job = _enqueue_final_llm(app, text_out, session_id, speaker_user,
+                                         notify=_send_status, started_at=utterance_started_at)
+                if job is None:
+                    await _send_status({"type": "request_status", "session_id": session_id,
+                                        "status": "rejected", "error": "unavailable"})
+                else:
+                    log.info("ARIA.SPK.Request", extra={"fields": {
+                        "request_id": job.request_id, "session_id": session_id,
+                        "client_id": client_id, "utterance": utterance_gen,
+                        "user": speaker_user,
+                        "name": spk_result.name if spk_result is not None else None,
+                        "score": spk_result.score if spk_result is not None else None,
+                        "known": bool(spk_result is not None and spk_result.known)}})
+                    await _send_status(job.status_message(
+                        "accepted" if job.status == "queued" else job.status,
+                        job.result.result().get("error") if job.result.done() else None))
 
         if not client_vad_enabled:
             vad.reset()
@@ -999,15 +1107,21 @@ async def ws_asr(ws: WebSocket) -> None:
     try:
         while True:
             message = await ws.receive()
+            revision = client_sessions.mute_revision(client_id)
+            muted = client_sessions.is_muted(client_id)
+            if revision != mute_revision or muted:
+                # A mute transition invalidates the entire unfinished utterance,
+                # including a mute/unmute pair between two received frames.
+                audio.clear()
+                buffering = client_vad_started = False
+                vad.reset()
+                if partial_task is not None:
+                    partial_task.cancel()
+                    partial_task = None
+                mute_revision = revision
             if message.get("type") == "websocket.disconnect":
                 if client_vad_enabled and buffering:
                     await _finalize_utterance(reason="disconnect")
-                history_lock = getattr(app.state, "llm_history_lock", None)
-                history_map = getattr(app.state, "llm_history", None)
-                if history_lock is not None and isinstance(history_map, dict):
-                    async with history_lock:
-                        history_map.pop(session_id, None)
-                log.info("ARIA.Session.Disconnected", extra={"fields": {"session_id": session_id}})
                 return
 
             text = message.get("text")
@@ -1032,6 +1146,16 @@ async def ws_asr(ws: WebSocket) -> None:
                         await ws.close(code=1003)
                         return
 
+                    try:
+                        name = validate_client_id(payload)
+                        if name is not None:
+                            session_id = client_sessions.claim(name, connection_id)
+                            client_id = name
+                            mute_revision = client_sessions.mute_revision(client_id)
+                    except ValueError as exc:
+                        await _send_status({"type": "session_error", "error": str(exc)})
+                        await ws.close(code=1008)
+                        return
                     started = True
                     client_vad_enabled = bool(payload.get("client_vad"))
                     client_vad_started = False
@@ -1040,11 +1164,15 @@ async def ws_asr(ws: WebSocket) -> None:
                         extra={
                             "fields": {
                                 "session_id": session_id,
+                                "connection_id": connection_id,
+                                "client_id": client_id,
                                 "chunk_ms": payload.get("chunk_ms"),
                                 "client_vad": client_vad_enabled,
                             }
                         },
                     )
+                    if client_id:
+                        await _send_status({"type": "session_started", "session_id": session_id})
                     continue
 
                 if msg_type == "stop":
@@ -1053,6 +1181,9 @@ async def ws_asr(ws: WebSocket) -> None:
                     log.info("ARIA.Session.Stopped", extra={"fields": {"session_id": session_id}})
                     await ws.close()
                     return
+
+                if muted:
+                    continue
 
                 if client_vad_enabled and msg_type == "utterance_start":
                     if buffering:
@@ -1072,6 +1203,10 @@ async def ws_asr(ws: WebSocket) -> None:
                 if not started:
                     await ws.close(code=1003)
                     return
+                if data:
+                    client_sessions.audio(client_id, connection_id)
+                if muted:
+                    continue
 
                 if not client_vad_enabled:
                     update = vad.push(data)
@@ -1129,7 +1264,17 @@ async def ws_asr(ws: WebSocket) -> None:
     finally:
         if partial_task is not None:
             partial_task.cancel()
-        pass
+        client_sessions.release(client_id, connection_id)
+        # Named clients retain bounded conversation state across transport loss.
+        # The conversation gate still clears it on goodbye, expiry or eviction.
+        if client_id is None:
+            history_lock = getattr(app.state, "llm_history_lock", None)
+            history_map = getattr(app.state, "llm_history", None)
+            if history_lock is not None and isinstance(history_map, dict):
+                async with history_lock:
+                    history_map.pop(session_id, None)
+        log.info("ARIA.Session.Disconnected", extra={"fields": {
+            "session_id": session_id, "connection_id": connection_id, "client_id": client_id}})
 
 
 async def _emit_partial_print(
@@ -1177,265 +1322,36 @@ def _llm_history_max_messages() -> int:
     return max(0, max_messages)
 
 
-def _enqueue_final_llm(app: FastAPI, transcript: str, session_id: str | None, speaker_user: str) -> None:
-    """Enqueue a final transcript for LLM processing without blocking."""
+def _request_event(fields: dict) -> None:
+    registry = getattr(app.state, "client_sessions", None)
+    if registry is not None:
+        registry.request(fields)
+    log.info("ARIA.Request.Status", extra={"fields": fields})
 
-    q: asyncio.Queue[tuple[str | None, str, str]] | None = getattr(app.state, "llm_queue", None)
-    if q is None:
-        return
 
-    text = transcript.strip()
-    if not text:
-        return
-
-    try:
-        q.put_nowait((session_id, text, speaker_user))
-    except asyncio.QueueFull:
-        # Drop the previous queued item and keep the latest.
-        with contextlib.suppress(Exception):
-            _ = q.get_nowait()
-        with contextlib.suppress(asyncio.QueueFull):
-            q.put_nowait((session_id, text, speaker_user))
+def _enqueue_final_llm(app: FastAPI, transcript: str, session_id: str | None,
+                       speaker_user: str, notify=None, *, started_at: float | None = None) -> AssistantRequest | None:
+    """Non-blocking voice admission; never displace another accepted request."""
+    queue = getattr(app.state, "llm_queue", None)
+    if queue is None or not transcript.strip():
+        _request_event({"session_id": session_id, "request_id": uuid4().hex,
+                        "source": "voice", "status": "rejected", "error": "unavailable"})
+        return None
+    return queue.submit(text=transcript.strip(), session_id=session_id, speaker_user=speaker_user,
+                        speak_response=True, use_tools=True, source="voice", notify=notify,
+                        conversation_started_at=started_at)
 
 
 async def _llm_worker(app: FastAPI) -> None:
-    """Background worker that processes FINAL transcripts via local LLM.
+    from app.llm.history_prefill import cancel_prefill
+    try:
+        await app.state.llm_queue.run(lambda job: _process_request(app, job))
+    finally:
+        await cancel_prefill(app.state)
 
-    Runs independently of the WebSocket receive loop so LLM latency cannot block audio ingestion.
-    """
 
-    q: asyncio.Queue[tuple[str | None, str, str]] | None = getattr(app.state, "llm_queue", None)
-    config = getattr(app.state, "llm_config", None)
-    client = getattr(app.state, "llm_client", None)
-    if q is None or config is None:
-        return
 
-    llm_debug = os.environ.get("ARIA_LLM_DEBUG", "").strip() not in {"", "0", "false", "False"}
 
-    log.info(
-        "ARIA.LLM.WorkerStarted",
-        extra={"fields": {"url": getattr(config, "url", None), "model": getattr(config, "model", None)}},
-    )
-
-    # Simple chat responses for router-classified CHAT messages
-    chat_responses = {
-        # Greetings (French)
-        "bonjour": "Bonjour! Comment puis-je vous aider?",
-        "bonsoir": "Bonsoir!",
-        "salut": "Salut!",
-        "bonne nuit": "Bonne nuit!",
-        "coucou": "Coucou!",
-        # Greetings (English)
-        "hello": "Hello! How can I help you?",
-        "hi": "Hi there!",
-        "hey": "Hey!",
-        "good morning": "Good morning!",
-        "good evening": "Good evening!",
-        "good night": "Good night!",
-        # Thanks (French)
-        "merci": "De rien!",
-        "merci beaucoup": "Je vous en prie!",
-        # Thanks (English)
-        "thank you": "You're welcome!",
-        "thanks": "You're welcome!",
-        # Time questions (French)
-        "quelle heure est-il": None,  # Need dynamic response
-        "quelle heure est-il?": None,
-        # Acknowledgments (should not respond)
-        "yeah": None,
-        "yep": None,
-        "ok": None,
-        "okay": None,
-        "oui": None,
-        "ouais": None,
-        "d'accord": None,
-        # Other
-        "au revoir": "Au revoir!",
-        "goodbye": "Goodbye!",
-        "à bientôt": "À bientôt!",
-    }
-
-    while True:
-        item = await q.get()
-        if isinstance(item, tuple) and len(item) == 3:
-            session_id, transcript, speaker_user = item
-        elif isinstance(item, tuple) and len(item) == 2:
-            session_id, transcript = item
-            speaker_user = "unknown"
-        else:
-            session_id, transcript, speaker_user = None, str(item), "unknown"
-        try:
-            # Router: Classify transcript as CHAT vs CONTROL before LLM
-            router = getattr(app.state, "router", None)
-            if router is not None:
-                try:
-                    decision = router.classify(transcript)
-                    log.info(
-                        "ARIA.Router.Decision",
-                        extra={
-                            "fields": {
-                                "text": transcript[:50] + "..." if len(transcript) > 50 else transcript,
-                                "mode": decision.mode,
-                                "detected_lang": decision.detected_lang,
-                                "confidence": round(decision.confidence, 3),
-                                "distance_to_control": round(decision.distance_to_control, 3),
-                                "distance_to_chat": round(decision.distance_to_chat, 3),
-                                "latency_ms": round(decision.latency_ms, 1),
-                                "reasoning": decision.reasoning
-                            }
-                        }
-                    )
-
-                    # If classified as CHAT, respond directly without LLM
-                    if decision.mode == "chat":
-                        # Find matching response (case-insensitive)
-                        text_lower = transcript.lower().strip().rstrip("?!.,")
-                        response = chat_responses.get(text_lower)
-
-                        # Handle time questions dynamically
-                        if text_lower in ("quelle heure est-il", "quelle heure est-il?", "what time is it", "what time is it?"):
-                            import datetime
-                            now = datetime.datetime.now()
-                            if decision.detected_lang == "fr":
-                                response = f"Il est {now.strftime('%H:%M')}."
-                            else:
-                                response = f"It's {now.strftime('%I:%M %p')}."
-
-                        # Default response based on language
-                        if response is None:
-                            if decision.detected_lang == "fr":
-                                response = "D'accord."
-                            else:
-                                response = "Okay."
-
-                        if response:
-                            print(f"ARIA.CHAT: {response}", flush=True)
-                            log.info(
-                                "ARIA.Router.ChatResponse",
-                                extra={"fields": {"transcript": transcript, "response": response, "lang": decision.detected_lang}}
-                            )
-
-                            # Optional TTS for chat response
-                            speech = getattr(app.state, "speech_output", None)
-                            if speech is not None:
-                                try:
-                                    await speech.speak(response)
-                                except Exception as e:
-                                    log.info("ARIA.TTS.Error", extra={"fields": {"error": repr(e)}})
-
-                        continue  # Skip LLM processing
-
-                    # If CONTROL or UNKNOWN, proceed to LLM
-                    log.info(
-                        "ARIA.Router.Proceeding",
-                        extra={"fields": {"mode": decision.mode, "reason": "Requires LLM processing"}}
-                    )
-
-                except Exception as e:
-                    log.error("ARIA.Router.ClassifyError", extra={"fields": {"error": repr(e)}})
-                    # Continue to LLM on router error
-            # Always emit a low-noise marker so it's obvious when a request is fired.
-            # (Full prompt logging is gated behind ARIA_LLM_DEBUG.)
-            log.info(
-                "ARIA.LLM.Start",
-                extra={
-                    "fields": {
-                        "transcript_len": len(transcript),
-                        "queue_pending": q.qsize(),
-                    }
-                },
-            )
-            if llm_debug:
-                max_chars = int(os.environ.get("ARIA_LLM_DEBUG_MAX_CHARS", "800"))
-                user_line = f"[speaker={speaker_user}] {transcript}"
-                user_text = user_line if len(user_line) <= max_chars else (user_line[:max_chars] + "…")
-                sys_text = SYSTEM_PROMPT
-                sys_text = sys_text if len(sys_text) <= 300 else (sys_text[:300] + "…")
-                log.info(
-                    "ARIA.LLM.Request",
-                    extra={
-                        "fields": {
-                            "system": sys_text,
-                            "user": user_text,
-                            "transcript_len": len(transcript),
-                        }
-                    },
-                )
-            history_max = _llm_history_max_messages()
-            messages: list[dict[str, str]] | None = None
-            if history_max > 0 and session_id:
-                history_lock = getattr(app.state, "llm_history_lock", None)
-                history_map = getattr(app.state, "llm_history", None)
-                if history_lock is not None and isinstance(history_map, dict):
-                    async with history_lock:
-                        history = history_map.get(session_id)
-                        if history:
-                            messages = [{"role": "system", "content": SYSTEM_PROMPT}, *list(history)]
-
-            if messages is None:
-                messages = [
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                ]
-            user_content = f"[speaker={speaker_user}] {transcript}"
-            messages.append({"role": "user", "content": user_content})
-
-            t0 = time.monotonic()
-            llm_result = await generate_llm_response(
-                text=transcript,
-                messages=messages,
-                config=config,
-                client=client,
-            )
-
-            # Handle both old (str) and new (dict) return formats
-            if isinstance(llm_result, dict):
-                response = llm_result.get("content", "")
-            else:
-                response = llm_result if isinstance(llm_result, str) else ""
-
-            dt_ms = int((time.monotonic() - t0) * 1000)
-            if response:
-                print(f"ARIA.LLM: {response}", flush=True)
-                log.info(
-                    "ARIA.LLM.Done",
-                    extra={
-                        "fields": {
-                            "ms": dt_ms,
-                            "transcript_len": len(transcript),
-                            "response_len": len(response),
-                        }
-                    },
-                )
-
-                if history_max > 0 and session_id:
-                    history_lock = getattr(app.state, "llm_history_lock", None)
-                    history_map = getattr(app.state, "llm_history", None)
-                    if history_lock is not None and isinstance(history_map, dict):
-                        async with history_lock:
-                            history = history_map.get(session_id)
-                            if history is None or getattr(history, "maxlen", None) != history_max:
-                                history = deque(list(history or []), maxlen=history_max)
-                                history_map[session_id] = history
-                            history.append({"role": "user", "content": user_content})
-                            history.append({"role": "assistant", "content": response})
-
-                # Optional TTS: speak the LLM response to Sonos.
-                speech = getattr(app.state, "speech_output", None)
-                if speech is not None:
-                    try:
-                        await speech.speak(response)
-                    except Exception as e:
-                        log.info("ARIA.TTS.Error", extra={"fields": {"error": repr(e)}})
-            else:
-                log.info(
-                    "ARIA.LLM.EmptyResponse",
-                    extra={"fields": {"ms": dt_ms, "transcript_len": len(transcript)}},
-                )
-        except Exception as e:
-            log.info(
-                "ARIA.LLM.Error",
-                extra={"fields": {"error": repr(e), "transcript_len": len(transcript)}},
-            )
 
 
 def _safe_json(text: str) -> dict[str, Any] | None:
@@ -1456,3 +1372,43 @@ def _valid_start(payload: dict[str, Any]) -> bool:
         and isinstance(payload.get("chunk_ms"), int)
         and 20 <= payload.get("chunk_ms") <= 60
     )
+
+
+def _chat_shortcut(app: FastAPI, text: str) -> str | None:
+    """Only explicit phrases are shortcuts; CHAT is not a canned-answer category."""
+    router = getattr(app.state, 'router', None)
+    if router is None:
+        return None
+    try:
+        decision = router.classify(text)
+        log.info('ARIA.Router.Decision', extra={'fields': {
+            'mode': decision.mode, 'detected_lang': decision.detected_lang,
+            'confidence': round(decision.confidence, 3)}})
+        if decision.mode != 'chat':
+            return None
+        responses = {
+            'bonjour': 'Bonjour! Comment puis-je vous aider?', 'bonsoir': 'Bonsoir!',
+            'salut': 'Salut!', 'bonne nuit': 'Bonne nuit!', 'coucou': 'Coucou!',
+            'hello': 'Hello! How can I help you?', 'hi': 'Hi there!', 'hey': 'Hey!',
+            'good morning': 'Good morning!', 'good evening': 'Good evening!',
+            'good night': 'Good night!', 'merci': 'De rien!',
+            'merci beaucoup': 'Je vous en prie!', 'thank you': "You're welcome!",
+            'thanks': "You're welcome!", 'au revoir': 'Au revoir!',
+            'goodbye': 'Goodbye!', 'à bientôt': 'À bientôt!',
+        }
+        key = text.lower().strip().rstrip('?!.,')
+        return responses.get(key)
+    except Exception as exc:
+        log.info('ARIA.Router.ClassifyError', extra={'fields': {'error': repr(exc)}})
+        return None
+
+
+async def _speak_reply(app: FastAPI, text: str, language: str) -> bool:
+    speech = getattr(app.state, 'speech_output', None)
+    if speech is not None:
+        try:
+            await speech.speak(text, language=language)
+            return True
+        except Exception as exc:
+            log.info('ARIA.TTS.Error', extra={'fields': {'error': repr(exc)}})
+    return False

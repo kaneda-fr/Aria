@@ -1,11 +1,17 @@
 # ARIA — Adaptive Real‑time Intelligent Assistant
 
-Aria is a **local-first voice assistant stack** built around a FastAPI server that:
+Aria is a **local-only voice assistant stack** built around a FastAPI server that:
 - receives **real-time microphone audio** over **WebSocket**,
 - performs **VAD + ASR** (Parakeet ONNX),
 - optionally calls a **local LLM** (e.g. Ollama),
 - generates **TTS** (Piper),
 - and can **play TTS on Sonos** via **HTTP streaming** (SoCo / `play_uri`).
+
+> **Mandatory design constraint:** all runtime processing and data remain on owned
+> devices and the local network. No cloud services, remote inference fallback,
+> external telemetry, or Internet dependency during operation. Startup may download
+> missing models; once operational, Aria must make no external calls. This is a
+> requirement, not a completed offline audit.
 
 > Current repo baseline: the server accepts **16kHz mono PCM16LE** audio over WebSocket and prints transcripts server-side.
 
@@ -227,5 +233,10 @@ See [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md) for all router configuration op
 - Add lightweight observability (latency budget per stage: VAD, ASR, LLM, TTS, Sonos fetch).
 
 ## For contributors
+
+- LLM session entry point: [AGENTS.md](AGENTS.md).
+- Project objective, current evidence, and context maintenance: [seed context](docs/agents/project.md).
+- The control architecture remains open; see [decision D-001](docs/agents/decisions.md).
+- Older specs below describe historical requirements; check [current status](docs/agents/status.md) before treating them as implemented.
 
 - Copilot build/spec instructions: [.copilot-instructions.md](.copilot-instructions.md)

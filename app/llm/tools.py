@@ -62,7 +62,8 @@ async def execute_tool(
     tool_name: str,
     tool_args: Dict[str, Any],
     inventory_provider: Optional[Any] = None,
-    actions_provider: Optional[Any] = None
+    actions_provider: Optional[Any] = None,
+    authorization: Optional[Any] = None,
 ) -> Dict[str, Any]:
     """
     Execute a tool call.
@@ -83,7 +84,7 @@ async def execute_tool(
         if tool_name == "find_devices":
             return await _find_devices(tool_args, inventory_provider, log)
         elif tool_name == "execute_command":
-            return await _execute_command(tool_args, inventory_provider, actions_provider, log)
+            return await _execute_command(tool_args, inventory_provider, actions_provider, log, authorization)
         else:
             log.error("ARIA.LLM.Tools.UnknownTool", extra={"fields": {"tool_name": tool_name}})
             return {
@@ -138,6 +139,7 @@ async def _find_devices(
         data = candidate.get("data", {})
         simplified.append({
             "cmd_id": data.get("cmd_id"),
+            "device_id": data.get("device_id"),
             "device_name": data.get("device_name"),
             "room": data.get("room"),
             "capability": data.get("capability"),
@@ -165,7 +167,8 @@ async def _execute_command(
     args: Dict[str, Any],
     inventory_provider: Optional[Any],
     actions_provider: Optional[Any],
-    log: Any
+    log: Any,
+    authorization: Optional[Any] = None,
 ) -> Dict[str, Any]:
     """Execute execute_command tool."""
     if not actions_provider or not actions_provider.is_started:
@@ -183,23 +186,46 @@ async def _execute_command(
             "success": False
         }
 
-    # Get execution spec from inventory (optional)
-    execution_spec = None
-    device_info = None
-    if inventory_provider and inventory_provider.is_started:
-        cmd = inventory_provider.indexer.get_command(cmd_id)
-        if cmd:
-            if cmd.execution:
-                execution_spec = cmd.execution
+    # Model arguments cannot authorize an action. Authority is request-bound,
+    # selected by server code, single-use, and checked against fresh inventory.
+    from app.llm.control import Authorization
+    import math
+    def reject(error):
+        return {"success": False, "cmd_id": cmd_id, "error": error,
+                "outcome": "rejected", "executed": False}
+    if not isinstance(authorization, Authorization) or authorization.consumed:
+        return reject("request_not_authorized")
+    authorization.consumed = True
+    if cmd_id != authorization.cmd_id or value != authorization.value:
+        return reject("request_mismatch")
+    if not inventory_provider or not inventory_provider.is_started:
+        return reject("inventory_unavailable")
+    cmd = inventory_provider.indexer.get_command(cmd_id)
+    if not cmd or cmd.type != "action" or not cmd.execution:
+        return reject("unknown_or_unexecutable_command")
+    device = inventory_provider.indexer.get_device(cmd.device_id)
+    if (not device or not device.enabled or cmd.device_id != authorization.device_id
+            or device.name != authorization.device_name or device.room != authorization.room
+            or cmd.capability != authorization.capability or cmd.execution != authorization.execution):
+        return reject("inventory_changed")
+    spec_args = cmd.execution.get("args", {})
+    if spec_args.get("cmd_id") is not None and str(spec_args["cmd_id"]) != str(cmd_id):
+        return reject("execution_spec_mismatch")
+    if cmd.capability.endswith("_slider"):
+        if (isinstance(value, bool) or not isinstance(value, (int, float))
+                or not math.isfinite(value) or int(value) != value):
+            return reject("invalid_value")
+        bounds = cmd.range or spec_args.get("range")
+        if bounds is None or not bounds[0] <= value <= bounds[1]:
+            return reject("value_out_of_range")
+        if spec_args.get("payload_template") != "slider":
+            return reject("unsupported_payload")
+    elif value is not None or spec_args.get("payload_template") not in ("other",):
+        return reject("unsupported_payload")
 
-            # Get device info for logging
-            device = inventory_provider.indexer.get_device(cmd.device_id)
-            if device:
-                device_info = {
-                    "device_name": device.name,
-                    "room": device.room,
-                    "capability": cmd.capability
-                }
+    # Resolve the execution spec from inventory, never from the generated args.
+    execution_spec = authorization.execution
+    device_info = {"device_name": device.name, "room": device.room, "capability": cmd.capability}
 
     # Debug logging (if enabled)
     import os
@@ -218,6 +244,8 @@ async def _execute_command(
         value=value,
         execution_spec=execution_spec
     )
+    result = {**result, "outcome": ("rejected" if not result.get("success") else
+                                   "recorded" if result.get("dry_run") else "submitted")}
 
     log.info("ARIA.LLM.Tools.ExecuteCommand", extra={"fields": {
         "cmd_id": cmd_id,
@@ -234,7 +262,7 @@ async def _execute_command(
     return result
 
 
-def format_tool_result_for_llm(tool_result: Dict[str, Any]) -> str:
+def format_tool_result_for_llm(tool_result: Dict[str, Any], *, language: str = "en") -> str:
     """
     Format tool execution result for LLM consumption.
 
@@ -250,17 +278,21 @@ def format_tool_result_for_llm(tool_result: Dict[str, Any]) -> str:
         if not candidates:
             return "No matching devices found."
 
-        lines = [f"Found {len(candidates)} device(s):"]
-        for i, candidate in enumerate(candidates, 1):
-            device_name = candidate.get("device_name", "Unknown")
-            room = candidate.get("room", "")
-            cmd_id = candidate.get("cmd_id", "")
-            capability = candidate.get("capability", "")
-
-            location = f" in {room}" if room else ""
-            lines.append(f"{i}. {device_name}{location} (cmd_id: {cmd_id}, capability: {capability})")
-
-        return "\n".join(lines)
+        groups = {}
+        for candidate in candidates:
+            key = candidate.get("device_id") or (candidate.get("device_name"), candidate.get("room"))
+            group = groups.setdefault(key, {"device_name": candidate.get("device_name"),
+                                            "room": candidate.get("room"), "commands": []})
+            group["commands"].append({"cmd_id": candidate.get("cmd_id"),
+                                      "capability": candidate.get("capability")})
+        data = {"devices": list(groups.values()), "current_state": "unknown", "shown_devices": len(groups),
+                "shown_commands": len(candidates), "matching_commands": tool_result.get("total_found", len(candidates))}
+        instruction = ("Réponds brièvement en français. Décris uniquement les commandes disponibles. "
+                       "L'état actuel est inconnu : aucune mesure d'état n'est fournie. Aucune action exécutée."
+                       if language == "fr" else
+                       "Reply briefly in English. Describe only the available commands. "
+                       "Current state is unknown: no state measurement is provided. No action executed.")
+        return json.dumps(data, ensure_ascii=False, separators=(",", ":")) + "\n" + instruction
 
     # execute_command result
     if "cmd_id" in tool_result:

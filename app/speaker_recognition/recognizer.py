@@ -310,3 +310,14 @@ def _base_user(name: str) -> str:
     if lowered.endswith("_en") or lowered.endswith("_fr"):
         return name[:-3]
     return name
+
+
+def self_speech_decision(result: SpeakerResult, self_names, min_score: float) -> tuple[str, bool]:
+    """Keep human attribution; an uncertain self candidate is not a human identity."""
+    import math
+    is_self = result.user.lower() == "aria" or result.name.lower() in {n.lower() for n in self_names}
+    if not is_self:
+        return result.user, False
+    threshold = min_score if math.isfinite(min_score) and 0 < min_score <= 1 else 0.75
+    suppress = result.known and math.isfinite(result.score) and result.score >= threshold
+    return (result.user if suppress else "unknown"), suppress

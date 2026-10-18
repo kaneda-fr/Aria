@@ -119,96 +119,10 @@ class InventoryProvider(ToolingProvider):
         }
 
     def get_candidates(self, text: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """
-        Get command candidates matching user input.
-
-        This is the HOT PATH for LLM tool execution (<10ms target).
-
-        Args:
-            text: User input (e.g., "turn on light in kitchen")
-            context: Optional context (room, speaker, etc.)
-
-        Returns:
-            Dict with candidates and scoring info
-        """
-        # For MVP, implement simple keyword matching
-        # Future: Use semantic embeddings, ML models, etc.
-
-        normalized_text = text.lower().strip()
-        words = set(normalized_text.split())
-
-        # Extract potential capability keywords
-        # Map keywords to domain prefixes (broader matching)
-        # Action keywords (on/off) map to domain "light_" to include all light capabilities
-        capability_keywords = {
-            # Domain keywords
-            "light": "light_",
-            "lumiere": "light_",
-            "shutter": "flap_",
-            "volet": "flap_",
-            "blind": "flap_",
-
-            # Action keywords - map to domain to find all device types
-            "on": "light_",
-            "allume": "light_",
-            "off": "light_",
-            "eteins": "light_",
-
-            # Specific capability keywords (for more precise matching)
-            "dim": "light_slider",
-            "brighten": "light_slider",
-            "dimmer": "light_slider",
-            "open": "flap_up",
-            "ouvre": "flap_up",
-            "close": "flap_down",
-            "ferme": "flap_down",
-        }
-
-        # Match capabilities
-        matched_caps = set()
-        for keyword, cap_prefix in capability_keywords.items():
-            if keyword in words or keyword in normalized_text:
-                matched_caps.add(cap_prefix)
-
-        # Find commands by capability
-        candidates = []
-        for cap_prefix in matched_caps:
-            for capability in self.indexer._by_capability.keys():
-                if capability.startswith(cap_prefix):
-                    cmds = self.indexer.find_by_capability(capability)
-                    for cmd in cmds:
-                        if cmd.type == "action":  # Only action commands
-                            device = self.indexer.get_device(cmd.device_id)
-                            if device:
-                                score = self._score_candidate(cmd, device, normalized_text, context)
-                                if score > 0:
-                                    candidates.append({
-                                        "id": cmd.cmd_id,
-                                        "score": score,
-                                        "data": {
-                                            "cmd_id": cmd.cmd_id,
-                                            "device_name": device.name,
-                                            "room": device.room,
-                                            "capability": cmd.capability,
-                                            "type": cmd.type,
-                                            "subType": cmd.subType,
-                                        }
-                                    })
-
-        # Sort by score (descending)
-        candidates.sort(key=lambda c: c["score"], reverse=True)
-
-        # Limit to top 10
-        candidates = candidates[:10]
-
-        return {
-            "candidates": candidates,
-            "debug": {
-                "text": normalized_text,
-                "matched_capabilities": list(matched_caps),
-                "total_candidates": len(candidates),
-            }
-        }
+        """Strict inventory matches; retain all matches so callers can see ambiguity."""
+        from .selection import select_commands
+        candidates = select_commands(self.indexer.get_snapshot(), text, context)
+        return {"candidates": candidates, "debug": {"total_candidates": len(candidates)}}
 
     def _score_candidate(
         self,

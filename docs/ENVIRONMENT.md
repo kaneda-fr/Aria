@@ -15,6 +15,43 @@ Unset variables use the documented defaults.
 | ARIA_PORT | 8000 | Bind port for the API server |
 | ARIA_WORKERS | 1 | Number of server workers (processes) |
 | ARIA_LOG_LEVEL | info | Log level for the server (uvicorn) |
+| ARIA_REQUEST_QUEUE_CAPACITY | 1 | Pending voice/text requests behind one shared inference worker; integer 1–16. Full queues reject new work, never evict accepted work |
+| ARIA_REQUEST_MAX_WAIT_S | 30 | Maximum queue age before execution; greater than 0 and at most 300 seconds. Expired work is not executed |
+
+The shared queue is per server process. Use one server worker on Apollo; increasing
+`ARIA_WORKERS` multiplies model/queue resources and does not provide global admission.
+Invalid queue settings leave the optional LLM unavailable. HTTP overload returns
+429, expiry returns 504, processing failures return 500; responses include
+`request_id` and `status`. Voice clients
+receive `request_status` frames for admission and terminal outcomes. Accepted voice
+work survives a socket disconnect; cancelling an HTTP handler skips its queued work
+but does not retry or revoke a running action. Shutdown-interrupted work may have
+already produced side effects and must not be blindly retried. Request completion
+does not mean physical device completion or completed audio playback.
+
+## Conversation activation
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| ARIA_WAKE_ENABLED | 1 | Gate both voice/text processing; `0`, `false`, or `off` explicitly selects legacy ungated behavior |
+| ARIA_CONVERSATION_IDLE_S | 30 | Finite 1–600 seconds of inactivity after server-estimated playback ends; voice uses server-observed speech onset before ASR |
+| ARIA_WAKE_DEFAULT_LANGUAGE | fr | `fr` or `en` for a bare name without a language-bearing greeting |
+
+With activation enabled, say “Aria” or “Bonjour/Hello Aria” once; include the request
+in the same utterance or speak it next. Follow-ups need no name. “Au revoir” /
+“Goodbye” closes the conversation. Full supported endings and recognition limits:
+[wake flow](agents/wake-flow-2026-10-18.md). Prefer “Bonjour Aria” / “Hello Aria”
+for the current ASR: bare-name clips remain unreliable. Voice-only bounded name
+canonicalization and remaining errors are documented in the
+[spoken-wake follow-up](agents/spoken-wake-2026-10-18.md).
+
+Each WebSocket has its own conversation. HTTP callers must reuse `session_id`
+(nonempty, at most 256 characters) for follow-ups; stateless requests need the name
+every time. Successful ignored requests return an empty response, `ignored: true`,
+`conversation_action: ignored`, and no speech/tool execution. Completion is not an
+action confirmation. The gate retains at most 256 sessions and clears history/device
+references on expiry, explicit closure, or eviction. Invalid activation settings fail
+startup; use one server worker to keep session state consistent.
 
 ## Models & Paths
 
@@ -79,7 +116,7 @@ Unset variables use the documented defaults.
 | ARIA_SPK_NUM_THREADS | 4 | Number of worker threads |
 | ARIA_SPK_MIN_SECONDS | 1.0 | Minimum audio duration for recognition |
 | ARIA_SPK_THRESHOLD_DEFAULT | 0.65 | Similarity threshold for known speaker |
-| ARIA_SPK_SELF_MIN_SCORE | 0.75 | Threshold to suppress self-speech |
+| ARIA_SPK_SELF_MIN_SCORE | 0.75 | Self-speech rejection requires `known` and a finite score at least this high, including base user `aria`; uncertain self candidates proceed as `unknown` through Echo Guard |
 | ARIA_SPK_SELF_NAMES | aria_fr,aria_en | Comma-separated self identity names |
 | ARIA_SPK_TIMEOUT_SEC | 1.0 | Recognition timeout |
 | ARIA_SPK_HOT_RELOAD | 0 | Hot reload profiles on change |
@@ -93,12 +130,22 @@ Unset variables use the documented defaults.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | ARIA_ECHO_V2_ENABLED | 1 | Enable echo guard v2 |
-| ARIA_ECHO_V2_TAIL_SEC | 2.0 | Post-TTS tail window for suppression |
+| ARIA_ECHO_V2_TAIL_SEC | 2.0 | Whole-text similarity tail after estimated playback, evaluated at speech onset |
+| ARIA_ECHO_V2_UNKNOWN_PREFIX_TAIL_SEC | 8.0 | Unknown-speaker opening-match tail; clamped to 0–30 seconds; accommodates output transport/player delay |
 | ARIA_ECHO_V2_MIN_WORDS | 5 | Minimum words in transcript to check |
 | ARIA_ECHO_V2_MIN_CHARS | 20 | Minimum characters in transcript to check |
 | ARIA_ECHO_V2_CONTAINMENT_THRESHOLD | 0.65 | Token containment threshold (0-1) |
 | ARIA_ECHO_V2_FUZZY_THRESHOLD | 0.75 | Fuzzy similarity threshold (0-1) |
 | ARIA_ECHO_V2_ALLOWLIST_REGEX | (empty) | Regex for interrupt/bypass words |
+
+The opening-match path requires effective speaker `unknown`, recent TTS and three
+matching normalized opening words. A short numeric reply can match two opening words
+only with a numeric continuation (digits or supported FR/EN numeral words). It runs
+before whole-text length limits; it does not change person attribution. Both paths
+use server-captured speech onset, with at most 60 seconds of ASR processing delay,
+and each candidate's own playback interval. TTS duration comes from the generated
+WAV, with a word estimate only if WAV metadata cannot be read. These are estimated
+playback windows, not acoustic cancellation or physical playback acknowledgments.
 
 ---
 
@@ -152,7 +199,7 @@ Uses language-specific embedding models for improved accuracy.
 1. Detects language (FR/EN) from STT transcript
 2. Selects language-specific embedding model
 3. Compares to pre-computed CHAT/CONTROL centroids
-4. CHAT → fast response (no LLM call)
+4. CHAT → fast response only for explicit known greetings/time questions; other conversation uses the shared LLM path
 5. CONTROL/UNKNOWN → proceeds to LLM with tool calling
 
 ---
@@ -184,14 +231,15 @@ Uses language-specific embedding models for improved accuracy.
 |----------|---------|-------------|
 | ARIA_LLM_PROVIDER | (none) | LLM provider: ollama or llamacpp |
 | ARIA_LLM_URL | http://localhost:11434 | LLM endpoint URL (Ollama) or http://127.0.0.1:8001/v1 (llama.cpp) |
-| ARIA_LLM_MODEL | qwen2.5:3b-instruct | Model name (Ollama) or local (llama.cpp). Recommend 7b for tool calling. |
+| ARIA_LLM_MODEL | qwen2.5:3b-instruct | Model name (Ollama) or local (llama.cpp). Select using Apollo quality, tool and latency measurements; a larger model is not automatically better. |
 | ARIA_LLM_TIMEOUT_S | 12 | Request timeout in seconds |
-| ARIA_LLM_NUM_PREDICT | (none) | Max tokens to generate (min 1024 for tool calling) |
+| ARIA_LLM_KEEP_ALIVE_S | -1 | Ollama only: integer seconds of model residency after each request; `-1` retains the model, `0` unloads immediately, `300` restores the old five-minute policy. Applied to warm-up, ordinary/tool calls, streaming, and history prefill. |
+| ARIA_LLM_NUM_PREDICT | (none) | Max generated tokens. Apollo conversation tests use 80; check truncation and tool JSON completeness when changing this bound. |
 | ARIA_LLM_TEMPERATURE | (none) | Sampling temperature (recommend 0.1 for tool calling) |
 | ARIA_LLM_TOP_P | (none) | Top-p sampling (recommend 0.85 for tool calling) |
 | ARIA_LLM_STREAM | 0 | Enable streaming responses |
 | ARIA_LLM_SYSTEM_PROMPT | You are ARIA... | System prompt for LLM (must include tool calling rules) |
-| ARIA_LLM_HISTORY_MAX_MESSAGES | 8 | Max conversation history (user+assistant pairs) |
+| ARIA_LLM_HISTORY_MAX_MESSAGES | 8 | Max retained messages, counting user and assistant separately |
 | ARIA_LLM_DEBUG | 0 | Enable debug logging for LLM |
 | ARIA_LLM_DEBUG_MAX_CHARS | 800 | Max characters to log in debug mode |
 
@@ -220,8 +268,15 @@ Uses language-specific embedding models for improved accuracy.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | ARIA_TTS_VOICE_MAP | (empty) | Voice mapping: "en:/path/en.onnx,fr:/path/fr.onnx" |
-| ARIA_TTS_LANG_DETECT | heuristic | Language detection: heuristic or langid |
-| ARIA_TTS_LANG_SHORT_REUSE_CHARS | 20 | Reuse last language for short texts (char threshold) |
+| ARIA_TTS_LANG_DETECT | heuristic | Local FR/EN detection from each request: heuristic or optional installed langid; unavailable langid falls back to heuristic |
+| ARIA_TTS_LANG_SHORT_REUSE_CHARS | (removed) | Ignored; language is no longer inherited from another response |
+
+The shared voice/text processor detects language from the current input, then passes
+it to TTS for both model replies and shortcuts. Every response chunk uses that
+language, including numeric replies. Direct `SpeechOutput.speak` callers can supply
+`language="en"` or `"fr"`; otherwise detection uses the full current reply. Ambiguous
+text defaults to English; this lightweight detector is not a general multilingual
+classifier or an interpreter for instructions such as “answer in another language.”
 
 ---
 
@@ -238,6 +293,39 @@ Uses language-specific embedding models for improved accuracy.
 
 ---
 
+## Server Clock
+
+Server local clock answers use `ARIA_TIMEZONE` (an IANA timezone such as
+`Europe/Zurich`). When unset, the host timezone applies. An explicit Zurich or UTC
+request overrides it; an invalid configured zone produces an unavailable reply,
+never an estimated time from the model. These answers do not require router enablement.
+
+## Ollama model residency
+
+Aria explicitly sends `keep_alive` on every Ollama request. The default `-1` keeps
+the small model loaded across idle periods, preserving the opportunity to reuse
+its prompt cache without periodic dummy inference. This overrides Ollama's daemon
+default for Aria's requests only; llama.cpp is unchanged. Invalid values (including
+duration strings such as `5m`) fail configuration loading; use integer seconds.
+
+Residency consumes model/cache RAM until Ollama unloads or evicts the model or its
+process stops. Another client/model can still replace it; this is not a memory
+reservation or a guarantee that every history prefix stays cached. Stopping Aria
+alone does not unload a model from a separately managed/shared Ollama process.
+Use a bounded positive value when that tradeoff is intended. Do not add periodic
+generation to keep it warm. See the [Apollo idle comparison](agents/idle-residency-2026-10-18.md).
+
+## History prefill
+
+`ARIA_HISTORY_PREFILL=0` disables opportunistic Ollama history prefill (default on).
+After a local clock/capability reply has prepared all audio, Aria may prefill the
+exact bounded history and tools while the last audio chunk plays. This requires a
+model turn in the same session within 60 seconds. One discarded token, one task,
+and a four-second inference timeout bound the work; new processing and shutdown
+cancel it. Pending work, missing/failed speech, and other providers skip it.
+It neither dispatches tools nor changes history. This shifts compute away from the
+next response; it does not eliminate inference cost or guarantee cache residency.
+
 ## Client-side Environment Variables
 
 These variables are used by the macOS client (`client/macos/mic_stream.py`).
@@ -248,13 +336,18 @@ These variables are used by the macOS client (`client/macos/mic_stream.py`).
 |----------|---------|-------------|
 | ARIA_CLIENT_DEBUG | 0 | Enable client debug statistics output |
 
+ESP32 settings are compile-time constants in
+[settings.h](../client/esp32/main/settings.h); the environment variables below
+apply only to the Mac. See the [feature parity matrix](../client/esp32/README.md)
+for different default gain policies and playback timing limits.
+
 ### Client-side VAD
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | ARIA_CLIENT_VAD | 0 | Enable client-side VAD (reduces bandwidth) |
 | ARIA_CLIENT_VAD_AGGR | 2 | Client VAD aggressiveness (0-3) |
-| ARIA_CLIENT_VAD_SILENCE_MS | 300 | Silence duration to end utterance |
+| ARIA_CLIENT_VAD_SILENCE_MS | 800 | Audio silence to end a turn; clamped to 200..3000 ms. Only applies when client VAD is enabled |
 | ARIA_CLIENT_VAD_PRE_MS | 200 | Pre-roll audio before speech start |
 | ARIA_CLIENT_VAD_START_FRAMES | 3 | Consecutive frames to start utterance |
 | ARIA_CLIENT_VAD_MIN_RMS | 0.0 | RMS threshold to ignore noise |
@@ -269,3 +362,21 @@ These variables are used by the macOS client (`client/macos/mic_stream.py`).
 | ARIA_CLIENT_AGC | varies | Enable AGC (default: 1 if VAD off, 0 if VAD on) |
 | ARIA_CLIENT_TARGET_RMS | 0.05 | Target RMS for AGC |
 | ARIA_CLIENT_MAX_GAIN | 50 | Maximum AGC gain multiplier |
+
+## Named clients and local monitoring
+
+- `ARIA_CLIENT_ID`: Mac microphone's unique, stable name; default
+  `aria-mac-<lowercase-hostname>`. One to 64 lowercase letters/digits, dots,
+  underscores or hyphens, starting with a letter/digit. Names are not authentication.
+- ESP32 uses its DHCP hostname (prefix plus full Wi-Fi MAC hex) as `client_id`.
+- `ARIA_MONITOR_ACTIVE`: local active-run JSON pointer, default
+  `/data/aria/monitor/active.json`.
+- `ARIA_MONITOR_RUN_ROOT`: allowed parent of run directories, default
+  `/data/aria/e2e/runs`.
+- Ollama startup may create a local `aria-tools-<hash>:latest` template alias with
+  existing weights; the model store must allow local alias creation. No model pull
+  occurs here. Missing local models/template preparation errors disable the optional
+  LLM through its existing initialization failure path. The isolated launcher uses
+  a writable per-run store linked to cached blobs/manifests.
+
+See [named-client protocol](agents/client-protocol.md) and [monitor operations](../monitor/README.md).

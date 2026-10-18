@@ -1,0 +1,11 @@
+CONFIG_IDF_TARGET="esp32s3"
+# Match the XIAO Sense board profile; verify the physical SKU before flashing.
+CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+CONFIG_FREERTOS_HZ=1000
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=6144
+# No camera, Bluetooth, PSRAM, filesystem, or model dependency.
+CONFIG_ESP_WIFI_NVS_ENABLED=n
+# Serialize audio and control frames when send/receive tasks run concurrently.
+CONFIG_ESP_WS_CLIENT_SEPARATE_TX_LOCK=y
+CONFIG_ESP_WS_CLIENT_TX_LOCK_TIMEOUT_MS=100

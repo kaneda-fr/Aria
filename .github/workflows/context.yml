@@ -1,0 +1,31 @@
+name: LLM context
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  context:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Test context checks without application dependencies
+        run: python3 -m unittest discover -s tests -p test_context.py -v
+      - name: Validate context and source review coverage
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -n "$BASE_REF" ] && [ "$BASE_REF" != "0000000000000000000000000000000000000000" ]; then
+            python3 scripts/check_context.py --base "$BASE_REF"
+          else
+            python3 scripts/check_context.py
+          fi

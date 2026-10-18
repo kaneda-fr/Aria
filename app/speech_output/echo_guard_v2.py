@@ -76,10 +76,12 @@ class EchoV2Config:
     containment_threshold: float
     fuzzy_threshold: float
     allowlist_regex: str | None
+    unknown_prefix_tail_sec: float = 8.0
 
     @staticmethod
     def from_env() -> "EchoV2Config":
         return EchoV2Config(
+            unknown_prefix_tail_sec=max(0.0, min(30.0, _env_float("ARIA_ECHO_V2_UNKNOWN_PREFIX_TAIL_SEC", 8.0))),
             enabled=_truthy_env("ARIA_ECHO_V2_ENABLED", "1"),
             tail_sec=_env_float("ARIA_ECHO_V2_TAIL_SEC", 2.0),
             min_words=_env_int("ARIA_ECHO_V2_MIN_WORDS", 5),
@@ -132,8 +134,13 @@ class EchoGuardV2:
                 self._speaking = False
             return self._speaking
 
-    def should_suppress(self, transcript: str, now_ts: float) -> tuple[bool, dict[str, Any]]:
+    def should_suppress(self, transcript: str, now_ts: float,
+                        speaker_user: str | None = None,
+                        utterance_started_ts: float | None = None) -> tuple[bool, dict[str, Any]]:
         info: dict[str, Any] = {
+            "reason": None,
+            "speaker_user": speaker_user,
+            "prefix_words": 0,
             "containment": 0.0,
             "fuzzy": 0.0,
             "matched_event": None,
@@ -153,13 +160,11 @@ class EchoGuardV2:
             events = list(self._events)
             speaking = self._speaking
 
-        most_recent = events[-1] if events else None
-        within_tail = False
-        if most_recent is not None:
-            within_tail = now_ts <= (most_recent.end_ts_est + self._cfg.tail_sec)
-
-        if not speaking and not within_tail:
+        # The capture onset, not delayed ASR completion, determines echo proximity.
+        capture_ts = now_ts if utterance_started_ts is None else utterance_started_ts
+        if not (now_ts - 60.0 <= capture_ts <= now_ts):
             return False, info
+        info["capture_age_s"] = now_ts - capture_ts
 
         if self._cfg.allowlist_regex:
             try:
@@ -167,6 +172,23 @@ class EchoGuardV2:
                     return False, info
             except re.error:
                 pass
+
+        if speaker_user == "unknown":
+            for event in reversed(events):
+                if not (event.start_ts <= capture_ts <= event.end_ts_est + self._cfg.unknown_prefix_tail_sec):
+                    continue
+                prefix_words = _matching_opening(text, event.text)
+                if prefix_words:
+                    info.update(reason="unknown_speaker_prefix", prefix_words=prefix_words,
+                                tts_id=event.tts_id, candidate_len=len(event.text),
+                                matched_event="current" if event is events[-1] else "last")
+                    return True, info
+
+        # Existing whole-text evidence remains independent of speaker attribution.
+        events = [event for event in events if event.start_ts <= capture_ts <=
+                  event.end_ts_est + self._cfg.tail_sec]
+        if not events:
+            return False, info
 
         norm_t = _normalize(text)
         tokens_t = _tokens(norm_t)
@@ -194,6 +216,7 @@ class EchoGuardV2:
                 matched = events[-1] if label == "current" else events[-2]
                 info.update(
                     {
+                        "reason": "text_similarity",
                         "containment": containment,
                         "fuzzy": fuzzy,
                         "matched_event": label,
@@ -240,6 +263,29 @@ def _env_int(name: str, default: int) -> int:
         return int(v)
     except ValueError:
         return default
+
+
+def _matching_opening(transcript: str, spoken: str) -> int:
+    """Exact normalized opening; numeric short replies need a numeric continuation."""
+    incoming, reference = _normalize(transcript).split(), _normalize(spoken).split()
+    count = min(3, len(reference))
+    if count < 2 or incoming[:count] != reference[:count]:
+        return 0
+    if count == 2:
+        if not re.search(r'\d', spoken):
+            return 0
+        # Digits in TTS become words in ASR. Do not match an unrelated continuation
+        # such as "It is possible ..." merely because a clock reply began "It is".
+        words = re.findall(r'\w+', _strip_accents(transcript.lower()))
+        numbers = set(('zero un une deux trois quatre cinq six sept huit neuf dix onze '
+                       'douze treize quatorze quinze seize vingt trente quarante cinquante '
+                       'soixante septante huitante nonante cent mille one two three four '
+                       'five six seven eight nine ten eleven twelve thirteen fourteen '
+                       'fifteen sixteen seventeen eighteen nineteen twenty thirty forty '
+                       'fifty sixty seventy eighty ninety hundred thousand').split())
+        if len(words) < 3 or not (words[2].isdigit() or words[2] in numbers):
+            return 0
+    return count
 
 
 def _normalize(text: str) -> str:

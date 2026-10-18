@@ -44,6 +44,8 @@ packages = [
   "app.http_audio",
   "app.audio_sink",
   "app.speech_output",
+  "app.routing",
+  "app.speaker_recognition",
   "app.plugins",
   "app.plugins.inventory",
   "app.plugins.inventory.sources",

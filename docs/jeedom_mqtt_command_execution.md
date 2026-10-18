@@ -367,7 +367,7 @@ backend = JeedomMQTTBackend(
     host="192.168.100.60",
     port=1883,
     username="aria_client",
-    password="secure_password"
+    password="<your-mqtt-password>"
 )
 
 # Execute slider command (set light to 50%)

@@ -1,0 +1,3 @@
+# Installed into /data/aria/e2e/deps, not into the deployed application environment.
+pytest==9.1.1
+pytest-asyncio==1.4.0

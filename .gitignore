@@ -1,2 +1,30 @@
-# Created by venv; see https://docs.python.org/3/library/venv.html
-*
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+*.egg
+dist/
+build/
+.venv/
+venv/
+include/
+lib/
+
+# GitNexus
+.gitnexus
+
+# Local secrets, personal recordings, runtime data and editor state
+.env
+.env.*
+!.env.example
+*.log
+.claude/settings*.json
+.serena/memories/
+client/macos/samples/
+/inventory.json
+/dev.json
+/disc.txt
+/decision_test_results.json
+/router_test_output.txt
+/README.md.old
+/app/main.py.backup

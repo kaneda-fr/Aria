@@ -1,0 +1,38 @@
+{
+  "areas": {
+    "monitor": {
+      "sources": ["monitor/", "design-system/aria-monitor/"],
+      "context": ["docs/agents/architecture.md", "docs/agents/status.md", "monitor/README.md"]
+    },
+    "runtime": {
+      "sources": ["app/*.py", "app/audio/", "app/asr/", "app/llm/", "app/tts/", "app/speech_output/", "app/speaker_recognition/", "app/audio_sink/", "app/http_audio/", "pyproject.toml"],
+      "context": ["docs/agents/architecture.md", "docs/agents/status.md", "app/AGENTS.md"]
+    },
+    "plugins": {
+      "sources": ["app/plugins/"],
+      "context": ["docs/agents/architecture.md", "docs/agents/status.md", "app/plugins/AGENTS.md"]
+    },
+    "routing": {
+      "sources": ["app/routing/"],
+      "context": ["docs/agents/architecture.md", "docs/agents/status.md", "app/routing/AGENTS.md"]
+    },
+    "client": {
+      "sources": ["client/macos/"],
+      "context": ["docs/agents/architecture.md", "docs/agents/workflow.md", "client/macos/AGENTS.md"]
+    },
+    "esp32-client": {
+      "sources": ["client/esp32/"],
+      "context": ["docs/agents/architecture.md", "docs/agents/status.md", "client/esp32/AGENTS.md", "client/esp32/README.md"]
+    },
+    "evaluation": {
+      "sources": ["tests/", "scripts/", "test_*.py"],
+      "context": ["docs/agents/status.md", "docs/agents/workflow.md", "docs/agents/e2e-testing.md", "tests/AGENTS.md", "docs/agents/maintenance.md"]
+    },
+    "context-system": {
+      "sources": [".github/", "docs/agents/source-map.json"],
+      "context": ["docs/agents/maintenance.md", "docs/agents/workflow.md"]
+    }
+  },
+  "review_log": "docs/agents/reviews.md",
+  "instruction_dirs": ["", "app", "app/plugins", "app/routing", "client/macos", "client/esp32", "tests"]
+}

@@ -31,6 +31,8 @@ class OllamaConfig:
     temperature: float | None = None
     top_p: float | None = None
     stream: bool = False
+    # Ollama seconds: -1 retains the model; 0 unloads after a response.
+    keep_alive_s: int = -1
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,6 +85,9 @@ def load_ollama_config() -> OllamaConfig:
     url = os.environ.get("ARIA_LLM_URL", "http://localhost:11434").rstrip("/")
     model = os.environ.get("ARIA_LLM_MODEL", "qwen2.5:3b-instruct")
     timeout_s = float(os.environ.get("ARIA_LLM_TIMEOUT_S", "12"))
+    keep_alive_s = int(os.environ.get("ARIA_LLM_KEEP_ALIVE_S", "-1"))
+    if keep_alive_s < -1:
+        raise ValueError("ARIA_LLM_KEEP_ALIVE_S must be -1 or nonnegative seconds")
 
     num_predict = _opt_int("ARIA_LLM_NUM_PREDICT")
     temperature = _opt_float("ARIA_LLM_TEMPERATURE")
@@ -98,6 +103,7 @@ def load_ollama_config() -> OllamaConfig:
         temperature=temperature,
         top_p=top_p,
         stream=stream,
+        keep_alive_s=keep_alive_s,
     )
 
 
@@ -166,6 +172,7 @@ async def generate_ollama_response(
             "model": config.model,
             "stream": config.stream,
             "messages": messages,
+            "keep_alive": config.keep_alive_s,
         }
 
         # Add tools if provided

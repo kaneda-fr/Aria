@@ -149,6 +149,16 @@ def _hash_key(*, text: str, voice: str, rate: float, volume: float) -> str:
     return h.hexdigest()[:32]
 
 
+def detect_language(text: str) -> str:
+    """Select FR/EN locally from this request; ambiguous input defaults to EN.
+
+    No session/global language memory and no model downloads. Optional langid
+    retains the existing heuristic fallback when unavailable.
+    """
+    mode = (os.environ.get("ARIA_TTS_LANG_DETECT", "heuristic") or "heuristic").strip().lower()
+    return _detect_lang_langid(text) if mode == "langid" else _detect_lang_heuristic(text)
+
+
 def _wav_duration_seconds(path: Path) -> float:
     with wave.open(str(path), "rb") as wf:
         frames = wf.getnframes()
@@ -168,11 +178,9 @@ class SpeechOutput:
     _max_chars: int = field(init=False, default=220, repr=False)
     _min_chars: int = field(init=False, default=60, repr=False)
     _task: Optional[asyncio.Task[None]] = field(init=False, default=None, repr=False)
+    audio_ready: asyncio.Future[bool] | None = field(init=False, default=None, repr=False)
     _lock: asyncio.Lock = field(init=False, default_factory=asyncio.Lock, repr=False)
     _voice_map: dict[str, str] = field(init=False, default_factory=dict, repr=False)
-    _lang_detect: str = field(init=False, default="heuristic", repr=False)
-    _short_reuse_chars: int = field(init=False, default=20, repr=False)
-    _last_lang: str | None = field(init=False, default=None, repr=False)
     _sonos_volume: int | None = field(init=False, default=None, repr=False)
 
     def __post_init__(self) -> None:
@@ -222,12 +230,6 @@ class SpeechOutput:
         if voice_map_raw:
             self._voice_map = _parse_voice_map(voice_map_raw)
 
-        self._lang_detect = (os.environ.get("ARIA_TTS_LANG_DETECT", "heuristic") or "heuristic").strip().lower()
-        try:
-            self._short_reuse_chars = int(os.environ.get("ARIA_TTS_LANG_SHORT_REUSE_CHARS", "20") or "20")
-        except ValueError:
-            self._short_reuse_chars = 20
-
         # Sonos speaker volume (0-100, default 30)
         sonos_vol_raw = os.environ.get("ARIA_SONOS_VOLUME", "").strip()
         if sonos_vol_raw:
@@ -243,11 +245,21 @@ class SpeechOutput:
     def tts_cache_dir(self) -> Path:
         return self.cfg.cache_dir
 
-    async def speak(self, text: str, volume: float | None = None) -> None:
+    @property
+    def playback_done(self) -> asyncio.Task | None:
+        """Snapshot of this reply's synthesis and estimated playback completion."""
+        return self._task
+
+    async def speak(self, text: str, volume: float | None = None, *, language: str | None = None) -> None:
         """Start speaking `text`.
 
-        Non-blocking: this schedules a background task.
+        Non-blocking: this schedules a background task. The request's language
+        applies to every chunk; callers without a hint use this full reply only.
         """
+
+        if language is not None and language not in {"en", "fr"}:
+            raise ValueError("Speech language must be en, fr, or None")
+        language = language or detect_language(text)
 
         # Cancel any existing playback first (outside the lock to avoid deadlocks).
         prior: Optional[asyncio.Task[None]]
@@ -264,7 +276,11 @@ class SpeechOutput:
 
         vol = self._volume_default if volume is None else float(volume)
         async with self._lock:
-            self._task = asyncio.create_task(self._run_speak(text, vol))
+            self.audio_ready = asyncio.get_running_loop().create_future()
+            self._task = asyncio.create_task(self._run_speak(text, vol, language, self.audio_ready))
+            # Also covers cancellation before the coroutine starts.
+            ready = self.audio_ready
+            self._task.add_done_callback(lambda _: ready.set_result(False) if not ready.done() else None)
 
     async def interrupt(self) -> None:
         """Stop current playback and cancel queued chunks.
@@ -284,10 +300,12 @@ class SpeechOutput:
         with contextlib.suppress(Exception):
             await self._sink.stop_all()
 
-    async def _run_speak(self, text: str, volume: float) -> None:
+    async def _run_speak(self, text: str, volume: float, language: str | None = None,
+                         audio_ready: asyncio.Future[bool] | None = None) -> None:
         text = (text or "").strip()
         if not text:
             return
+        lang = language or detect_language(text)
 
         if self.echo_guard is not None:
             self.echo_guard.set_speaking(True)
@@ -311,19 +329,11 @@ class SpeechOutput:
 
             log.info("ARIA.TTS.Speaking", extra={"fields": {"chunks": len(chunks), "sonos_volume": self._sonos_volume}})
 
-            for chunk in chunks:
+            for chunk_index, chunk in enumerate(chunks):
                 try:
                     voice = self.cfg.voice
                     if self._voice_map:
                         chunk_body = (chunk or "").strip()
-                        if len(chunk_body) < self._short_reuse_chars and self._last_lang is not None:
-                            lang = self._last_lang
-                        else:
-                            if self._lang_detect == "langid":
-                                lang = _detect_lang_langid(chunk_body)
-                            else:
-                                lang = _detect_lang_heuristic(chunk_body)
-                            self._last_lang = lang
                         voice = self._voice_map.get(lang) or self._voice_map.get("en") or voice
                         log.info(
                             "ARIA.TTS.Language",
@@ -339,12 +349,15 @@ class SpeechOutput:
                         )
                         await asyncio.to_thread(normalize_for_sonos, raw, norm_path, volume=volume)
 
-                    # Record TTS chunk timing before playback (estimated).
+                    try:
+                        dur = _wav_duration_seconds(norm_path)
+                    except Exception:
+                        dur = max(0.6, len(chunk.split()) / 2.6) + 0.4
+
+                    # Use generated WAV duration; transport/player delay remains estimated.
                     if self.echo_guard is not None:
-                        words = len((chunk or "").strip().split())
-                        est_dur = max(0.6, (words / 2.6)) + 0.4
                         start_ts = time.time()
-                        end_ts = start_ts + est_dur
+                        end_ts = start_ts + dur
                         tts_id = str(uuid4())
                         self.echo_guard.record_tts_event(chunk, start_ts, end_ts, tts_id)
 
@@ -353,10 +366,8 @@ class SpeechOutput:
 
                     # Fire playback and then wait approximately the duration.
                     await self._sink.play_url(url)
-                    try:
-                        dur = _wav_duration_seconds(norm_path)
-                    except Exception:
-                        dur = 1.0
+                    if chunk_index == len(chunks) - 1 and audio_ready is not None and not audio_ready.done():
+                        audio_ready.set_result(True)
                     await asyncio.sleep(max(0.2, dur + 0.15))
                 except asyncio.CancelledError:
                     raise
