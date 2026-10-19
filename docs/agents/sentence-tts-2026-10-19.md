@@ -213,3 +213,15 @@ The broker waits against both clip completion and the renewable player lease; a
 silent reader loss no longer blocks for a long clip's full duration. Four new tests
 cover expired/renewed leases and canceled start/finish events; three failed before
 these fixes. **239 tests pass** on Apollo afterward, without real audio or actions.
+
+
+The third review identified a body-only lease-renewal gap during slow network reads.
+The Mac player now owns one five-second heartbeat task for its registered session,
+including state polling and WAV transfers. Renewal errors are surfaced before
+starting audio or while awaiting process completion; exit cancels and awaits the
+task before unregistering. Waiting for playback uses FIRST_COMPLETED so the heartbeat
+cannot add a five-second transition delay. A delayed-transfer reproduction failed
+before the fix. The expanded suite passes 240 tests; the parameterized renewal-failure
+follow-up adds one distinct passing case (**241 total**), with no physical audio.
+A fresh external review of this last fix is pending: the workflow's three automated
+review cycles have been used. The PR is not yet merged at this checkpoint.

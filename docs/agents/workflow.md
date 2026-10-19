@@ -168,3 +168,6 @@ prior playback, and cancellation/interruption must release slots and reject old 
 `test_player_liveness.py` covers lease expiry/renewal and canceled event handling
 with mocked audio processes. Validate tickets before playback; stale clips must not
 terminate the listener or block later replies.
+
+`test_mac_player_heartbeat.py` covers lease renewal during delayed state/WAV reads,
+renewal failure before audio, and background-task cleanup on listener exit.

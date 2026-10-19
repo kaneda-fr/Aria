@@ -29,8 +29,12 @@ async def test_fast_poll_is_bounded_to_transition_then_returns_to_idle(tmp_path,
     real_client=httpx.AsyncClient
     monkeypatch.setattr(mac_playback.httpx,'AsyncClient',lambda **kw:real_client(transport=httpx.MockTransport(respond),**kw))
     monkeypatch.setattr(mac_playback,'time',SimpleNamespace(monotonic=lambda:clock[0],time=lambda:clock[0]))
+    real_sleep = asyncio.sleep
     async def sleep(delay):
+        if delay == 5:
+            return await real_sleep(delay)  # Independent lease task, canceled on exit.
         sleeps.append(delay);clock[0]+=delay
+        await real_sleep(0)
     monkeypatch.setattr(mac_playback.asyncio,'sleep',sleep)
     async def launch(*args):
         proc=SimpleNamespace(returncode=None,terminate=lambda:None)

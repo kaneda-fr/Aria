@@ -34,13 +34,17 @@ async def listen(url, artifacts):
             'pid': os.getpid(), 'url': url, 'mac_capture': False,
             'mac_playback': True, 'cursor': cursor, 'config': config, 'player_id': player}))
         print('READY — Mac playback only; microphone OFF.', flush=True)
-        heartbeat_at = time.monotonic()
+        async def renew_lease():
+            while True:
+                await asyncio.sleep(5)
+                (await client.put(endpoint)).raise_for_status()
+
+        heartbeat = asyncio.create_task(renew_lease())
         transition_until = 0.0
         try:
             while True:
-                if time.monotonic() - heartbeat_at >= 5:
-                    (await client.put(endpoint)).raise_for_status()
-                    heartbeat_at = time.monotonic()
+                if heartbeat.done():
+                    heartbeat.result()
                 state = (await client.get('/_e2e/state', params={'after': cursor})).raise_for_status().json()
                 cursor = state['next']
                 for event in state['events']:
@@ -64,6 +68,8 @@ async def listen(url, artifacts):
                                     output.write(chunk)
                         # Validate the pending ticket before launching audio. A
                         # canceled event can remain in the append-only event log.
+                        if heartbeat.done():
+                            heartbeat.result()
                         claim = await client.post(ack, json={'status': 'started'})
                         if claim.status_code == 409:
                             continue
@@ -73,16 +79,15 @@ async def listen(url, artifacts):
                         waiter = asyncio.create_task(proc.wait())
                         try:
                             while not waiter.done():
-                                await asyncio.wait({waiter}, timeout=5)
-                                if not waiter.done():
-                                    (await client.put(endpoint)).raise_for_status()
+                                await asyncio.wait({waiter, heartbeat}, timeout=5, return_when=asyncio.FIRST_COMPLETED)
+                                if heartbeat.done():
+                                    heartbeat.result()
                             code = waiter.result()
                             completion = await client.post(ack, json={'status': 'finished' if code == 0 else 'failed'})
                             if completion.status_code != 409:
                                 completion.raise_for_status()
-                            heartbeat_at = time.monotonic()
                             # A prepared following voice can arrive just after this ack.
-                            transition_until = heartbeat_at + .25
+                            transition_until = time.monotonic() + .25
                         finally:
                             if proc.returncode is None:
                                 proc.terminate()
@@ -100,6 +105,8 @@ async def listen(url, artifacts):
                             raise RuntimeError('Mac audio playback failed')
                 await asyncio.sleep(.01 if time.monotonic() < transition_until else .1)
         finally:
+            heartbeat.cancel()
+            await asyncio.gather(heartbeat, return_exceptions=True)
             with contextlib.suppress(Exception):
                 await client.delete(endpoint)
 
