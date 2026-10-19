@@ -2,7 +2,7 @@
 
 **2026-10-19:** [Sentence voice routing](sentence-tts-2026-10-19.md) and acknowledged
 Mac delivery are implemented. Review fixes release cancelled slots, invalidate
-interrupted waiters and propagate muted scheduling. Apollo: 241 targeted tests pass.
+interrupted waiters and propagate muted scheduling. Apollo: 242 targeted tests pass.
 Other UI/inventory/history/input-admission fixes remain separate. Audio is off;
 tools are log-only. Live-state entries below are historical.
 

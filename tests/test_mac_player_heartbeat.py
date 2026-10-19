@@ -7,10 +7,11 @@ from scripts.e2e import mac_playback
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("heartbeat_fails", [False, True])
-async def test_heartbeat_runs_during_state_and_wav_reads_and_stops_on_exit(tmp_path, monkeypatch, heartbeat_fails):
+@pytest.mark.parametrize("failure_phase", [None, "wav", "claim"])
+async def test_heartbeat_runs_during_state_and_wav_reads_and_stops_on_exit(tmp_path, monkeypatch, failure_phase):
     state_renewed = asyncio.Event()
     wav_renewed = asyncio.Event()
+    claim_renewed = asyncio.Event()
     phase = ['idle']
     polls = 0
     renewals = []
@@ -35,9 +36,14 @@ async def test_heartbeat_runs_during_state_and_wav_reads_and_stops_on_exit(tmp_p
                 if phase[0] == 'state': state_renewed.set()
                 if phase[0] == 'wav':
                     wav_renewed.set()
-                    if heartbeat_fails: return httpx.Response(409,json={'detail':'expired'})
+                if phase[0] == 'claim': claim_renewed.set()
+                if phase[0] == failure_phase: return httpx.Response(409,json={'detail':'expired'})
             return httpx.Response(200,json={})
-        if '/clip/' in path: return httpx.Response(200,json={})
+        if '/clip/' in path:
+            if failure_phase == 'claim':
+                phase[0] = 'claim'
+                await asyncio.wait_for(claim_renewed.wait(), .2)
+            return httpx.Response(200,json={})
         if path.startswith('/tts/'): return httpx.Response(200,stream=DelayedWav())
         if path == '/_e2e/state':
             polls += 1
@@ -59,9 +65,9 @@ async def test_heartbeat_runs_during_state_and_wav_reads_and_stops_on_exit(tmp_p
     monkeypatch.setattr(mac_playback.asyncio,'create_subprocess_exec',launch)
     with pytest.raises(httpx.HTTPStatusError) as end:
         await asyncio.wait_for(mac_playback.listen('http://aria',tmp_path),2)
-    assert end.value.request.url.path == ('/_live/player/player' if heartbeat_fails else '/_e2e/state')
+    assert end.value.request.url.path == ('/_live/player/player' if failure_phase else '/_e2e/state')
     assert state_renewed.is_set() and wav_renewed.is_set()
-    assert len(launches) == (0 if heartbeat_fails else 1)
+    assert len(launches) == (0 if failure_phase else 1)
     count = len(renewals)
     await real_sleep(.03)
     assert len(renewals) == count

@@ -74,6 +74,8 @@ async def listen(url, artifacts):
                         if claim.status_code == 409:
                             continue
                         claim.raise_for_status()
+                        if heartbeat.done():
+                            heartbeat.result()
                         started = time.time()
                         proc = await asyncio.create_subprocess_exec('/usr/bin/afplay', str(wav))
                         waiter = asyncio.create_task(proc.wait())

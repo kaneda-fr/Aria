@@ -225,3 +225,14 @@ before the fix. The expanded suite passes 240 tests; the parameterized renewal-f
 follow-up adds one distinct passing case (**241 total**), with no physical audio.
 A fresh external review of this last fix is pending: the workflow's three automated
 review cycles have been used. The PR is not yet merged at this checkpoint.
+
+
+The maintainer authorized a fourth external review for the important lifecycle fix.
+It exposed a narrower race: renewal could fail while the `started` acknowledgment
+was in flight, after the pre-claim heartbeat check. The player now checks the task
+again immediately after a successful claim, before launching audio. This adds no
+network request or await. A delayed-claim regression launched a mocked player before
+the fix and now asserts zero launches; the complete expanded Apollo suite passes
+**242 tests**. GitNexus upstream impact is LOW (player entry point and tests).
+All four review cycles are complete; another current-head review requires explicit
+maintainer authorization or a review waiver. No merge or live deployment occurred.

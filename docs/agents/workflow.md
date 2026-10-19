@@ -170,4 +170,4 @@ with mocked audio processes. Validate tickets before playback; stale clips must 
 terminate the listener or block later replies.
 
 `test_mac_player_heartbeat.py` covers lease renewal during delayed state/WAV reads,
-renewal failure before audio, and background-task cleanup on listener exit.
+renewal failure during WAV reads or start acknowledgments, and task cleanup on exit.
