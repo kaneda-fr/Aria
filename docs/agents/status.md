@@ -1,5 +1,11 @@
 # Current evidence, gaps, and history
 
+**2026-10-19:** [Sentence voice routing](sentence-tts-2026-10-19.md) and acknowledged
+Mac delivery are implemented. Review fixes release cancelled slots, invalidate
+interrupted waiters and propagate muted scheduling. Apollo: 242 targeted tests pass.
+Other UI/inventory/history/input-admission fixes remain separate. Audio is off;
+tools are log-only. Live-state entries below are historical.
+
 **Latest audio instruction — 2026-10-18:** the maintainer enabled Mac **playback only**
 and ESP32 input. Mac capture remains OFF. The playback-only listener attached to the
 current run and its readiness WAV completed successfully; LAN ingress was restored.
@@ -191,12 +197,8 @@ decision or evidence of implemented fixes.
 
 ## Historical measurements
 
-`decision_test_results.json` reported 14/20 passing, with insufficient action oracles
-and source/model/hardware provenance. `router_test_output.txt` reported 7/18 correct
-on February 1, before later language work. Neither is a current reliability score.
-The control-bench ONNX results differ from their README and lack verified hardware,
-power, and full-pipeline measurements. Inspect without changing the dirty checkout:
-`git show feature/control-bench:results/onnx_comparison.csv`.
+Historical results use incomplete action oracles and hardware provenance; they are
+not current reliability scores. See [review history](reviews-history.md).
 
 ## Memory review and provenance
 

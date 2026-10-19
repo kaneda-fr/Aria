@@ -47,10 +47,10 @@ async def test_alternating_numeric_replies_use_request_voice_and_separate_cache(
 @pytest.mark.asyncio
 async def test_request_language_is_fixed_for_all_chunks(output, monkeypatch):
     speech, _, synthesized = output
-    monkeypatch.setattr(speech_module, 'chunk_text', lambda *_: ['Bonjour.', '4', 'The end.'])
-    await speech.speak('Bonjour. 4 The end.', language='fr')
+    monkeypatch.setattr(speech_module, 'chunk_text', lambda *_: ['Bonjour.', '4', 'Fin.'])
+    await speech.speak('Bonjour. 4 Fin.', language='fr')
     await speech._task
-    assert synthesized == [('Bonjour.', 'french'), ('4', 'french'), ('The end.', 'french')]
+    assert synthesized == [('Bonjour.', 'french'), ('4', 'french'), ('Fin.', 'french')]
 
 
 @pytest.mark.asyncio

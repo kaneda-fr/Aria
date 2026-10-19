@@ -152,3 +152,22 @@ Verify physical reconnects keep names/session keys but change connection IDs, re
 duplicates, preserve only unexpired context and never replay audio/actions. Verify
 client filters and request-correlated speaker scores in the browser. Keep tools
 log-only and pause microphones while measuring paired inference latency.
+
+
+Sentence voice routing: run `tests/test_sentence_voice.py`, `test_sentence_player.py`,
+`test_speech_delivery.py`, `test_playback_delivery.py`, `test_mac_playback_delivery.py`
+and existing speech/shared-request/queue/live tests on Apollo.
+`scripts/e2e/sentence_tts_bench.py --output <private-json> --rounds 3 --playback`
+uses captured WAVs and timer acknowledgments, never a physical player.
+See [evidence and limits](sentence-tts-2026-10-19.md).
+
+Review lifecycle fixes also run `test_speech_review_regressions.py`,
+`test_conversation_gate.py` and `test_spoken_wake.py`: muted replies must not attach
+prior playback, and cancellation/interruption must release slots and reject old waiters.
+
+`test_player_liveness.py` covers lease expiry/renewal and canceled event handling
+with mocked audio processes. Validate tickets before playback; stale clips must not
+terminate the listener or block later replies.
+
+`test_mac_player_heartbeat.py` covers lease renewal during delayed state/WAV reads,
+renewal failure during WAV reads or start acknowledgments, and task cleanup on exit.
