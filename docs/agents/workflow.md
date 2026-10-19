@@ -164,3 +164,7 @@ See [evidence and limits](sentence-tts-2026-10-19.md).
 Review lifecycle fixes also run `test_speech_review_regressions.py`,
 `test_conversation_gate.py` and `test_spoken_wake.py`: muted replies must not attach
 prior playback, and cancellation/interruption must release slots and reject old waiters.
+
+`test_player_liveness.py` covers lease expiry/renewal and canceled event handling
+with mocked audio processes. Validate tickets before playback; stale clips must not
+terminate the listener or block later replies.

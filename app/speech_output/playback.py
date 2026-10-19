@@ -47,8 +47,19 @@ class PlaybackBroker:
         row = {'future': future, 'player': self.player, 'started': False}
         self.pending[clip] = row
         async def wait():
+            finish_deadline = self.clock() + duration + 15
             try:
-                await asyncio.wait_for(future, timeout=duration + 15)
+                while not future.done():
+                    now = self.clock()
+                    if self.player != row['player'] or self.deadline <= now:
+                        raise RuntimeError('player_lease_expired')
+                    remaining = min(finish_deadline, self.deadline) - now
+                    if remaining <= 0:
+                        raise asyncio.TimeoutError('playback_timeout')
+                    # Do not cancel the completion future at each lease boundary:
+                    # a heartbeat may have renewed the lease while this waited.
+                    await asyncio.wait({future}, timeout=remaining)
+                await future
             finally:
                 self.pending.pop(clip, None)
         task = asyncio.create_task(wait())

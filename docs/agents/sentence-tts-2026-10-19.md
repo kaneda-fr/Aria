@@ -199,3 +199,17 @@ voice interruption remains deferred. The expanded Apollo suite passes **235 test
 including a fifth stop-in-progress race case and wake/conversation regressions.
 These review fixes are validated in the merge candidate; the earlier deployed run
 has not been replaced by this PR task.
+
+
+The second review confirmed those fixes and exposed two additional delivery cases.
+The Mac now validates the existing `started` acknowledgment immediately before
+launching the audio process, and ignores canceled-ticket conflicts at start/finish
+while continuing to later clips. This moves the existing HTTP acknowledgment ahead
+of process launch; it adds no HTTP request, but the pre-start LAN round trip remains
+part of unmeasured physical onset latency. `started` is permission to begin playback;
+actual process-launch/finish timestamps remain in the player log. This is not remote
+mid-clip interruption: voice barge-in remains deferred.
+The broker waits against both clip completion and the renewable player lease; a
+silent reader loss no longer blocks for a long clip's full duration. Four new tests
+cover expired/renewed leases and canceled start/finish events; three failed before
+these fixes. **239 tests pass** on Apollo afterward, without real audio or actions.

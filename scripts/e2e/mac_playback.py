@@ -62,17 +62,24 @@ async def listen(url, artifacts):
                                     if size > 10 * 1024 * 1024:
                                         raise ValueError('Audio exceeds playback bound')
                                     output.write(chunk)
+                        # Validate the pending ticket before launching audio. A
+                        # canceled event can remain in the append-only event log.
+                        claim = await client.post(ack, json={'status': 'started'})
+                        if claim.status_code == 409:
+                            continue
+                        claim.raise_for_status()
                         started = time.time()
                         proc = await asyncio.create_subprocess_exec('/usr/bin/afplay', str(wav))
                         waiter = asyncio.create_task(proc.wait())
                         try:
-                            (await client.post(ack, json={'status': 'started'})).raise_for_status()
                             while not waiter.done():
                                 await asyncio.wait({waiter}, timeout=5)
                                 if not waiter.done():
                                     (await client.put(endpoint)).raise_for_status()
                             code = waiter.result()
-                            (await client.post(ack, json={'status': 'finished' if code == 0 else 'failed'})).raise_for_status()
+                            completion = await client.post(ack, json={'status': 'finished' if code == 0 else 'failed'})
+                            if completion.status_code != 409:
+                                completion.raise_for_status()
                             heartbeat_at = time.monotonic()
                             # A prepared following voice can arrive just after this ack.
                             transition_until = heartbeat_at + .25
