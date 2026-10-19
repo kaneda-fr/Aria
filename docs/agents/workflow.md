@@ -160,3 +160,7 @@ and existing speech/shared-request/queue/live tests on Apollo.
 `scripts/e2e/sentence_tts_bench.py --output <private-json> --rounds 3 --playback`
 uses captured WAVs and timer acknowledgments, never a physical player.
 See [evidence and limits](sentence-tts-2026-10-19.md).
+
+Review lifecycle fixes also run `test_speech_review_regressions.py`,
+`test_conversation_gate.py` and `test_spoken_wake.py`: muted replies must not attach
+prior playback, and cancellation/interruption must release slots and reject old waiters.

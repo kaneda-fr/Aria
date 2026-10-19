@@ -3,7 +3,9 @@
 **2026-10-19 — sentence voice routing:** French/English voices now follow sentence
 boundaries, with one-chunk lookahead and acknowledged Mac delivery. See the
 [implementation and Apollo measurements](sentence-tts-2026-10-19.md). Other UI, inventory, history and input-admission fixes remain separate.
-Audio is currently off; tools are log-only. Older live-state entries below are historical.
+Review fixes settle cancelled playback, invalidate interrupted waiters and propagate
+muted scheduling through both callers. Audio is off; tools are log-only.
+Older live-state entries below are historical.
 
 **Latest audio instruction — 2026-10-18:** the maintainer enabled Mac **playback only**
 and ESP32 input. Mac capture remains OFF. The playback-only listener attached to the
