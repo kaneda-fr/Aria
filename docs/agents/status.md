@@ -1,5 +1,10 @@
 # Current evidence, gaps, and history
 
+**2026-10-19 — sentence voice routing:** French/English voices now follow sentence
+boundaries, with one-chunk lookahead and acknowledged Mac delivery. See the
+[implementation and Apollo measurements](sentence-tts-2026-10-19.md). Other UI, inventory, history and input-admission fixes remain separate.
+Audio is currently off; tools are log-only. Older live-state entries below are historical.
+
 **Latest audio instruction — 2026-10-18:** the maintainer enabled Mac **playback only**
 and ESP32 input. Mac capture remains OFF. The playback-only listener attached to the
 current run and its readiness WAV completed successfully; LAN ingress was restored.
@@ -191,12 +196,8 @@ decision or evidence of implemented fixes.
 
 ## Historical measurements
 
-`decision_test_results.json` reported 14/20 passing, with insufficient action oracles
-and source/model/hardware provenance. `router_test_output.txt` reported 7/18 correct
-on February 1, before later language work. Neither is a current reliability score.
-The control-bench ONNX results differ from their README and lack verified hardware,
-power, and full-pipeline measurements. Inspect without changing the dirty checkout:
-`git show feature/control-bench:results/onnx_comparison.csv`.
+Historical results use incomplete action oracles and hardware provenance; they are
+not current reliability scores. See [review history](reviews-history.md).
 
 ## Memory review and provenance
 

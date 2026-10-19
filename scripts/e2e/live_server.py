@@ -5,6 +5,10 @@ from datetime import datetime, timezone
 import json
 import os
 import time
+from urllib.parse import urlsplit
+from fastapi import HTTPException
+from app.speech_output.playback import PlaybackBroker
+from app.speech_output.speech_output import _wav_duration_seconds
 
 import uvicorn
 
@@ -16,6 +20,7 @@ from scripts.e2e.live_warmup import warmup
 from app.llm.history_prefill import PREFILL
 
 REQUEST = ContextVar('live_request', default=None)
+PLAYBACK = PlaybackBroker()
 original_process = runtime._process_request
 original_tool = tooling.execute_tool
 original_lifespan = app.router.lifespan_context
@@ -75,7 +80,12 @@ async def logged_process(app, job):
 class LiveSink(CaptureSink):
     async def play_url(self, url):
         await super().play_url(url)
-        log_turn('Live.Audio', request_id=REQUEST.get(), url=url)
+        filename = urlsplit(url).path.rsplit('/', 1)[-1]
+        ticket = (PLAYBACK.begin(_wav_duration_seconds(RUN / 'tts' / 'sonos' / filename))
+                  if PLAYBACK.player and PLAYBACK.deadline > PLAYBACK.clock() else None)
+        log_turn('Live.Audio', request_id=REQUEST.get(), url=url,
+                 playback_id=ticket[0] if ticket else None)
+        return ticket[1] if ticket else None
 
 
 async def logged_tool(**kwargs):
@@ -137,6 +147,52 @@ async def ready_speech():
         return {'success': spoken, 'spoken': spoken, 'response': 'Aria is ready.'}
     finally:
         REQUEST.reset(token)
+
+
+@app.post('/_live/player')
+async def register_player():
+    try:
+        return {'player_id': PLAYBACK.register()}
+    except ValueError as exc:
+        raise HTTPException(409, str(exc))
+
+
+@app.put('/_live/player/{player}')
+async def player_heartbeat(player: str):
+    try:
+        PLAYBACK.heartbeat(player)
+        return {'success': True}
+    except ValueError as exc:
+        raise HTTPException(409, str(exc))
+
+
+@app.delete('/_live/player/{player}')
+async def unregister_player(player: str):
+    try:
+        PLAYBACK.unregister(player)
+        return {'success': True}
+    except ValueError as exc:
+        raise HTTPException(409, str(exc))
+
+
+@app.post('/_live/player/{player}/clip/{clip}')
+async def player_status(player: str, clip: str, body: dict):
+    try:
+        PLAYBACK.ack(player, clip, body.get('status'))
+        log_turn('Live.Playback', playback_id=clip, status=body['status'])
+        return {'success': True}
+    except ValueError as exc:
+        raise HTTPException(409, str(exc))
+
+
+@app.get('/_live/playback')
+async def playback_state():
+    speech = getattr(app.state, 'speech_output', None)
+    revision = getattr(speech, 'input_revision', 0)
+    blocked = bool(getattr(speech, 'input_blocked', False))
+    return {'input_blocked': blocked, 'input_revision': revision,
+            'pending': len(PLAYBACK.pending),
+            'player_connected': bool(PLAYBACK.player and PLAYBACK.deadline > PLAYBACK.clock())}
 
 
 if __name__ == '__main__':

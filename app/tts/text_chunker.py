@@ -72,10 +72,17 @@ def chunk_text(text: str, cfg: ChunkingConfig) -> list[str]:
 
 
 def _split_sentences(text: str) -> list[str]:
-    # Keep punctuation with the sentence.
+    # Keep closing quotes with their sentence. Decimal points have no following
+    # space; common titles/initials must not create tiny language-routing spans.
     out: list[str] = []
     start = 0
-    for m in re.finditer(r"[.!?]+\s+", text):
+    for m in re.finditer(r"""[.!?]+["'»”’)\]]*\s+""", text):
+        prefix = text[:m.start() + 1]
+        if text[m.start()] == "." and re.search(
+            r"(?:\b(?:M|Mme|Mlle|Dr|Mr|Mrs|Ms|Prof|St|etc)|\b[A-Z]|(?:\b[A-Z]\.)+[A-Z])\.$",
+            prefix,
+        ):
+            continue
         end = m.end()
         out.append(text[start:end].strip())
         start = end

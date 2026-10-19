@@ -88,6 +88,9 @@ def _detect_lang_heuristic(text: str) -> str:
         "ton",
         "nom",
         "comment",
+        "combien",
+        "pourquoi",
+        "quand",
         "quel",
         "quelle",
         "quels",
@@ -159,6 +162,53 @@ def detect_language(text: str) -> str:
     return _detect_lang_langid(text) if mode == "langid" else _detect_lang_heuristic(text)
 
 
+def speech_language(text: str, requested: str) -> str:
+    """Use clear prose evidence; neutral numbers/names keep the request language."""
+    words = set(re.findall(r"[a-zàâçéèêîôùûü]+", (text or '').lower()))
+    if words and words <= {'oui', 'non', 'bonjour', 'bonsoir', 'merci', 'salut', 'désolé'}:
+        return 'fr'
+    if words and words <= {'yes', 'no', 'hello', 'thanks', 'sorry', 'goodbye'}:
+        return 'en'
+    fr = len(words & {'je', 'tu', 'il', 'elle', 'nous', 'vous', 'le', 'la', 'les',
+                      'une', 'des', 'du', 'est', 'sont', 'ne', 'pas', 'votre',
+                      'pour', 'dans', 'quel', 'quelle', 'peux', 'pouvez'})
+    en = len(words & {'i', 'you', 'he', 'she', 'we', 'they', 'the', 'a', 'an',
+                      'is', 'are', 'not', 'your', 'could', 'would', 'please',
+                      'with', 'for', 'in', 'what', 'which', 'can'})
+    if en >= 2 and en - fr >= 2:
+        return 'en'
+    if fr >= 2 and fr - en >= 2:
+        return 'fr'
+    return requested
+
+
+def speech_chunks(text: str, cfg: ChunkingConfig, requested: str) -> list[tuple[str, str]]:
+    """Keep existing size bounds, but never merge sentences across voice changes.
+
+    Ambiguous text keeps the last clear language in this reply, initially the
+    request's language. Never inherit another request's voice. Same-language chunks retain their original text
+    and cache keys. This is voice routing, not a mixed-language safety guard.
+    """
+    from app.tts.text_chunker import _split_sentences
+
+    result: list[tuple[str, str]] = []
+    current = requested
+    for chunk in chunk_text(text, cfg):
+        sentences = _split_sentences(chunk)
+        groups: list[tuple[str, str]] = []
+        for sentence in sentences:
+            lang = speech_language(sentence, current)
+            current = lang
+            if groups and groups[-1][1] == lang:
+                groups[-1] = (groups[-1][0] + ' ' + sentence, lang)
+            else:
+                groups.append((sentence, lang))
+        if len(groups) == 1:
+            groups[0] = (chunk, groups[0][1])
+        result.extend(groups)
+    return result
+
+
 def _wav_duration_seconds(path: Path) -> float:
     with wave.open(str(path), "rb") as wf:
         frames = wf.getnframes()
@@ -180,8 +230,14 @@ class SpeechOutput:
     _task: Optional[asyncio.Task[None]] = field(init=False, default=None, repr=False)
     audio_ready: asyncio.Future[bool] | None = field(init=False, default=None, repr=False)
     _lock: asyncio.Lock = field(init=False, default_factory=asyncio.Lock, repr=False)
+    _schedule_lock: asyncio.Lock = field(init=False, default_factory=asyncio.Lock, repr=False)
+    _playing: bool = field(init=False, default=False, repr=False)
+    _input_revision: int = field(init=False, default=0, repr=False)
+    _quiet_until: float = field(init=False, default=0.0, repr=False)
     _voice_map: dict[str, str] = field(init=False, default_factory=dict, repr=False)
     _sonos_volume: int | None = field(init=False, default=None, repr=False)
+    _output_mute_deadline: float = field(init=False, default=0.0, repr=False)
+    _output_mute_revision: int = field(init=False, default=0, repr=False)
 
     def __post_init__(self) -> None:
         self._engine = build_tts_engine(self.cfg)
@@ -246,41 +302,62 @@ class SpeechOutput:
         return self.cfg.cache_dir
 
     @property
+    def input_revision(self) -> int:
+        return self._input_revision
+
+    @property
+    def input_blocked(self) -> bool:
+        """Drain microphones without processing output or its short acoustic tail."""
+        return self._playing or time.monotonic() < self._quiet_until
+
+    @property
     def playback_done(self) -> asyncio.Task | None:
-        """Snapshot of this reply's synthesis and estimated playback completion."""
+        """Snapshot of synthesis and acknowledged (or estimated) sink completion."""
         return self._task
 
-    async def speak(self, text: str, volume: float | None = None, *, language: str | None = None) -> None:
-        """Start speaking `text`.
+    def output_status(self) -> dict:
+        remaining = max(0., self._output_mute_deadline - time.monotonic())
+        return {'available': True, 'muted': remaining > 0, 'mute_remaining_s': remaining}
 
-        Non-blocking: this schedules a background task. The request's language
-        applies to every chunk; callers without a hint use this full reply only.
-        """
+    def set_output_muted(self, muted: bool) -> dict:
+        """Skip future clips for five minutes without stopping an active delivery."""
+        if self.output_status()['muted'] != muted:
+            self._output_mute_deadline = time.monotonic() + 300 if muted else 0.
+            self._output_mute_revision += 1
+        return self.output_status()
 
-        if language is not None and language not in {"en", "fr"}:
-            raise ValueError("Speech language must be en, fr, or None")
+    def _skip_output(self) -> bool:
+        self.audio_ready = asyncio.get_running_loop().create_future()
+        self.audio_ready.set_result(False)
+        log.info('ARIA.TTS.Skipped', extra={'fields': {'reason': 'output_muted'}})
+        return False
+
+    async def speak(self, text: str, volume: float | None = None, *, language: str | None = None) -> bool:
+        """Schedule one reply after preceding output finishes; no automatic interruption."""
+        if language is not None and language not in {'en', 'fr'}:
+            raise ValueError('Speech language must be en, fr, or None')
+        if self.output_status()['muted']:
+            return self._skip_output()
         language = language or detect_language(text)
-
-        # Cancel any existing playback first (outside the lock to avoid deadlocks).
-        prior: Optional[asyncio.Task[None]]
-        async with self._lock:
+        mute_revision = self._output_mute_revision
+        # The shared worker bounds waiting producers; never accumulate playback tasks.
+        async with self._schedule_lock:
             prior = self._task
-            self._task = None
-
-        if prior is not None and not prior.done():
-            prior.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await prior
-            with contextlib.suppress(Exception):
-                await self._sink.stop_all()
-
-        vol = self._volume_default if volume is None else float(volume)
-        async with self._lock:
-            self.audio_ready = asyncio.get_running_loop().create_future()
-            self._task = asyncio.create_task(self._run_speak(text, vol, language, self.audio_ready))
-            # Also covers cancellation before the coroutine starts.
-            ready = self.audio_ready
-            self._task.add_done_callback(lambda _: ready.set_result(False) if not ready.done() else None)
+            if prior is not None and not prior.done():
+                try:
+                    await asyncio.shield(prior)
+                except asyncio.CancelledError:
+                    if asyncio.current_task().cancelling():
+                        raise
+            if self.output_status()['muted'] or mute_revision != self._output_mute_revision:
+                return self._skip_output()
+            vol = self._volume_default if volume is None else float(volume)
+            async with self._lock:
+                self.audio_ready = asyncio.get_running_loop().create_future()
+                self._task = asyncio.create_task(self._run_speak(text, vol, language, self.audio_ready, mute_revision))
+                ready = self.audio_ready
+                self._task.add_done_callback(lambda _: ready.set_result(False) if not ready.done() else None)
+        return True
 
     async def interrupt(self) -> None:
         """Stop current playback and cancel queued chunks.
@@ -301,84 +378,123 @@ class SpeechOutput:
             await self._sink.stop_all()
 
     async def _run_speak(self, text: str, volume: float, language: str | None = None,
-                         audio_ready: asyncio.Future[bool] | None = None) -> None:
+                         audio_ready: asyncio.Future[bool] | None = None,
+                         output_revision: int | None = None) -> None:
+        mute_revision = self._output_mute_revision if output_revision is None else output_revision
+
+        def muted() -> bool:
+            return self.output_status()['muted'] or mute_revision != self._output_mute_revision
+
+        if muted():
+            log.info('ARIA.TTS.Skipped', extra={'fields': {'reason': 'output_muted'}})
+            return
         text = (text or "").strip()
         if not text:
             return
-        lang = language or detect_language(text)
+        requested = language or detect_language(text)
+        pending = None
+
+        async def prepare(chunk: str, voice: str):
+            if muted():
+                return None
+            key = _hash_key(text=chunk, voice=voice, rate=self.cfg.rate, volume=volume)
+            norm_path = (self.cfg.cache_dir / "sonos" / f"{key}.wav").resolve()
+            if not norm_path.exists() or norm_path.stat().st_size == 0:
+                raw = await asyncio.to_thread(
+                    self._engine.synthesize_to_wav, chunk, voice=voice, rate=self.cfg.rate
+                )
+                if muted():
+                    return None
+                await asyncio.to_thread(normalize_for_sonos, raw, norm_path, volume=volume)
+            if muted():
+                return None
+            try:
+                dur = _wav_duration_seconds(norm_path)
+            except Exception:
+                dur = max(0.6, len(chunk.split()) / 2.6) + 0.4
+            return key, dur
 
         if self.echo_guard is not None:
             self.echo_guard.set_speaking(True)
-
         try:
             cfg = ChunkingConfig(
                 enabled=self._chunking_enabled,
                 max_chars_per_chunk=self._max_chars,
                 min_chunk_chars=self._min_chars,
             )
-            chunks = chunk_text(text, cfg)
+            chunks = speech_chunks(text, cfg, requested)
             if not chunks:
                 return
 
-            # Set Sonos volume before speaking
+            def voice_for(lang: str) -> str:
+                return self._voice_map.get(lang) or self._voice_map.get("en") or self.cfg.voice
+
+            # One future WAV, only for replies requiring different voices.
+            # Ordinary monolingual output retains its existing scheduling/cache path.
+            lookahead = len({voice_for(lang) for _, lang in chunks}) > 1
+
             if self._sonos_volume is not None and self._sink is not None:
                 try:
                     await self._sink.set_volume(self._sonos_volume)
                 except Exception as e:
                     log.warning("ARIA.TTS.VolumeError", extra={"fields": {"error": repr(e)}})
 
-            log.info("ARIA.TTS.Speaking", extra={"fields": {"chunks": len(chunks), "sonos_volume": self._sonos_volume}})
+            log.info("ARIA.TTS.Speaking", extra={"fields": {
+                "chunks": len(chunks), "sonos_volume": self._sonos_volume}})
 
-            for chunk_index, chunk in enumerate(chunks):
-                try:
-                    voice = self.cfg.voice
-                    if self._voice_map:
-                        chunk_body = (chunk or "").strip()
-                        voice = self._voice_map.get(lang) or self._voice_map.get("en") or voice
-                        log.info(
-                            "ARIA.TTS.Language",
-                            extra={"fields": {"lang": lang, "voice": voice, "chars": len(chunk_body)}},
-                        )
-
-                    key = _hash_key(text=chunk, voice=voice, rate=self.cfg.rate, volume=volume)
-                    norm_path = (self.cfg.cache_dir / "sonos" / f"{key}.wav").resolve()
-
-                    if not norm_path.exists() or norm_path.stat().st_size == 0:
-                        raw = await asyncio.to_thread(
-                            self._engine.synthesize_to_wav, chunk, voice=voice, rate=self.cfg.rate
-                        )
-                        await asyncio.to_thread(normalize_for_sonos, raw, norm_path, volume=volume)
-
-                    try:
-                        dur = _wav_duration_seconds(norm_path)
-                    except Exception:
-                        dur = max(0.6, len(chunk.split()) / 2.6) + 0.4
-
-                    # Use generated WAV duration; transport/player delay remains estimated.
-                    if self.echo_guard is not None:
-                        start_ts = time.time()
-                        end_ts = start_ts + dur
-                        tts_id = str(uuid4())
-                        self.echo_guard.record_tts_event(chunk, start_ts, end_ts, tts_id)
-
-                    url = f"{self._base_url}/tts/{key}.wav"
-                    log.info("ARIA.TTS.URL", extra={"fields": {"url": url}})
-
-                    # Fire playback and then wait approximately the duration.
-                    await self._sink.play_url(url)
-                    if chunk_index == len(chunks) - 1 and audio_ready is not None and not audio_ready.done():
-                        audio_ready.set_result(True)
-                    await asyncio.sleep(max(0.2, dur + 0.15))
-                except asyncio.CancelledError:
-                    raise
-                except Exception as e:
-                    log.warning(
-                        "ARIA.TTS.Error",
-                        extra={"fields": {"error": repr(e)}},
-                        exc_info=True,
-                    )
+            for chunk_index, (chunk, lang) in enumerate(chunks):
+                if muted():
+                    log.info('ARIA.TTS.Skipped', extra={'fields': {'reason': 'output_muted'}})
                     return
+                voice = voice_for(lang)
+                if lang != requested:
+                    log.warning('ARIA.TTS.LanguageMismatch', extra={'fields': {
+                        'requested_language': requested, 'speech_language': lang,
+                        'chars': len(chunk), 'chunk_index': chunk_index}})
+                log.info("ARIA.TTS.Language", extra={"fields": {
+                    "lang": lang, "voice": voice, "chars": len(chunk),
+                    "chunk_index": chunk_index, "requested_language": requested}})
+                if pending is None:
+                    prepared = await prepare(chunk, voice)
+                else:
+                    prepared = await pending
+                    pending = None
+                if prepared is None or muted():
+                    return
+                key, dur = prepared
+
+                if self.echo_guard is not None:
+                    start_ts = time.time()
+                    self.echo_guard.record_tts_event(
+                        chunk, start_ts, start_ts + dur, str(uuid4()))
+
+                url = f"{self._base_url}/tts/{key}.wav"
+                log.info("ARIA.TTS.URL", extra={"fields": {"url": url}})
+                if not self._playing:
+                    self._playing = True
+                    self._input_revision += 1
+                delivery = await self._sink.play_url(url)
+                if chunk_index == len(chunks) - 1 and audio_ready is not None and not audio_ready.done():
+                    audio_ready.set_result(True)
+                if lookahead and chunk_index + 1 < len(chunks) and not muted():
+                    next_text, next_lang = chunks[chunk_index + 1]
+                    pending = asyncio.create_task(prepare(next_text, voice_for(next_lang)))
+                if isinstance(delivery, asyncio.Future):
+                    await delivery
+                else:
+                    await asyncio.sleep(max(0.2, dur + 0.15))
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            log.warning("ARIA.TTS.Error", extra={"fields": {"error": repr(e)}}, exc_info=True)
         finally:
+            if pending is not None:
+                pending.cancel()
+                await asyncio.gather(pending, return_exceptions=True)
+            if self._playing:
+                self._playing = False
+                self._input_revision += 1
+                self._quiet_until = time.monotonic() + 0.3
             if self.echo_guard is not None:
                 self.echo_guard.set_speaking(False)
 

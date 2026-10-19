@@ -152,3 +152,11 @@ Verify physical reconnects keep names/session keys but change connection IDs, re
 duplicates, preserve only unexpired context and never replay audio/actions. Verify
 client filters and request-correlated speaker scores in the browser. Keep tools
 log-only and pause microphones while measuring paired inference latency.
+
+
+Sentence voice routing: run `tests/test_sentence_voice.py`, `test_sentence_player.py`,
+`test_speech_delivery.py`, `test_playback_delivery.py`, `test_mac_playback_delivery.py`
+and existing speech/shared-request/queue/live tests on Apollo.
+`scripts/e2e/sentence_tts_bench.py --output <private-json> --rounds 3 --playback`
+uses captured WAVs and timer acknowledgments, never a physical player.
+See [evidence and limits](sentence-tts-2026-10-19.md).

@@ -94,9 +94,9 @@ API remains a separate lower-level interface outside this assistant-request guar
 Mac client VAD owns `utterance_start`/`utterance_end`, with 800 ms silence
 (configurable 200..3000 ms). Server VAD applies otherwise. The 10-second ring buffer
 and backpressure remain bounded. Acoustic pauses can still split or merge turns.
-The processor detects request FR/EN once and passes it through every TTS chunk,
-including numeric answers. Ambiguous input defaults to English; this does not infer
-cross-language reply instructions. See [turn/language details](turns-and-language.md).
+TTS uses the request language for ambiguous text, adapting voices at sentence
+boundaries with bounded lookahead and optional player acknowledgments. See
+[sentence routing, input-state limits and measurements](sentence-tts-2026-10-19.md).
 
 [RequestQueue](../../app/llm/request_queue.py) permits one running request and one
 pending request by default. It preserves FIFO accepted work and rejects new work

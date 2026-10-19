@@ -1,6 +1,7 @@
 """Play new Apollo replies on macOS; never opens a microphone or starts inference."""
 import argparse
 import asyncio
+import contextlib
 import json
 import os
 from pathlib import Path
@@ -26,49 +27,74 @@ async def listen(url, artifacts):
                 await asyncio.sleep(.25)
         if config.get('tools_mode') != 'log_only' or not config.get('warmup_ready'):
             raise RuntimeError('Expected ready, log-only Apollo instance')
-        # Start at the current cursor: never replay earlier benchmark or conversation audio.
         cursor = (await client.get('/_e2e/state')).raise_for_status().json()['next']
+        player = (await client.post('/_live/player')).raise_for_status().json()['player_id']
+        endpoint = '/_live/player/' + player
         (artifacts / 'ready.json').write_text(json.dumps({
             'pid': os.getpid(), 'url': url, 'mac_capture': False,
-            'mac_playback': True, 'cursor': cursor, 'config': config}))
+            'mac_playback': True, 'cursor': cursor, 'config': config, 'player_id': player}))
         print('READY — Mac playback only; microphone OFF.', flush=True)
-        while True:
-            state = (await client.get('/_e2e/state', params={'after': cursor})).raise_for_status().json()
-            cursor = state['next']
-            for event in state['events']:
-                if event['event'] != 'Live.Audio':
-                    continue
-                path = urlsplit(event['url']).path
-                if not re.fullmatch(r'/tts/[0-9a-f]{32}\.wav', path):
-                    raise ValueError('Invalid Apollo audio path')
-                with tempfile.TemporaryDirectory(prefix='aria-playback-') as temp:
-                    wav = Path(temp) / 'reply.wav'
-                    size = 0
-                    async with client.stream('GET', path) as response:
-                        response.raise_for_status()
-                        with wav.open('wb') as output:
-                            async for chunk in response.aiter_bytes():
-                                size += len(chunk)
-                                if size > 10 * 1024 * 1024:
-                                    raise ValueError('Audio exceeds playback bound')
-                                output.write(chunk)
-                    started = time.time()
-                    proc = await asyncio.create_subprocess_exec('/usr/bin/afplay', str(wav))
-                    try:
-                        code = await proc.wait()
-                    finally:
-                        if proc.returncode is None:
-                            proc.terminate()
-                            await proc.wait()
-                    row = {'request_id': event.get('request_id'), 'audio_ready': event['time'],
-                           'player_started': started, 'player_finished': time.time(),
-                           'exit_code': code, 'bytes': size}
-                    with (artifacts / 'playback.jsonl').open('a') as log:
-                        log.write(json.dumps(row) + '\n')
-                    print(json.dumps(row), flush=True)
-                    if code:
-                        raise RuntimeError('Mac audio playback failed')
-            await asyncio.sleep(.1)
+        heartbeat_at = time.monotonic()
+        transition_until = 0.0
+        try:
+            while True:
+                if time.monotonic() - heartbeat_at >= 5:
+                    (await client.put(endpoint)).raise_for_status()
+                    heartbeat_at = time.monotonic()
+                state = (await client.get('/_e2e/state', params={'after': cursor})).raise_for_status().json()
+                cursor = state['next']
+                for event in state['events']:
+                    if event['event'] != 'Live.Audio' or not event.get('playback_id'):
+                        continue
+                    clip = event['playback_id']
+                    path = urlsplit(event['url']).path
+                    if not re.fullmatch(r'[0-9a-f]{32}', clip) or not re.fullmatch(r'/tts/[0-9a-f]{32}\.wav', path):
+                        raise ValueError('Invalid Apollo audio delivery')
+                    ack = endpoint + '/clip/' + clip
+                    with tempfile.TemporaryDirectory(prefix='aria-playback-') as temp:
+                        wav = Path(temp) / 'reply.wav'
+                        size = 0
+                        async with client.stream('GET', path) as response:
+                            response.raise_for_status()
+                            with wav.open('wb') as output:
+                                async for chunk in response.aiter_bytes():
+                                    size += len(chunk)
+                                    if size > 10 * 1024 * 1024:
+                                        raise ValueError('Audio exceeds playback bound')
+                                    output.write(chunk)
+                        started = time.time()
+                        proc = await asyncio.create_subprocess_exec('/usr/bin/afplay', str(wav))
+                        waiter = asyncio.create_task(proc.wait())
+                        try:
+                            (await client.post(ack, json={'status': 'started'})).raise_for_status()
+                            while not waiter.done():
+                                await asyncio.wait({waiter}, timeout=5)
+                                if not waiter.done():
+                                    (await client.put(endpoint)).raise_for_status()
+                            code = waiter.result()
+                            (await client.post(ack, json={'status': 'finished' if code == 0 else 'failed'})).raise_for_status()
+                            heartbeat_at = time.monotonic()
+                            # A prepared following voice can arrive just after this ack.
+                            transition_until = heartbeat_at + .25
+                        finally:
+                            if proc.returncode is None:
+                                proc.terminate()
+                                await proc.wait()
+                            if not waiter.done():
+                                waiter.cancel()
+                            await asyncio.gather(waiter, return_exceptions=True)
+                        row = {'request_id': event.get('request_id'), 'playback_id': clip,
+                               'audio_ready': event['time'], 'player_started': started,
+                               'player_finished': time.time(), 'exit_code': code, 'bytes': size}
+                        with (artifacts / 'playback.jsonl').open('a') as log:
+                            log.write(json.dumps(row) + '\n')
+                        print(json.dumps(row), flush=True)
+                        if code:
+                            raise RuntimeError('Mac audio playback failed')
+                await asyncio.sleep(.01 if time.monotonic() < transition_until else .1)
+        finally:
+            with contextlib.suppress(Exception):
+                await client.delete(endpoint)
 
 
 def main():

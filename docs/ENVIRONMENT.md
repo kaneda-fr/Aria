@@ -380,3 +380,8 @@ for different default gain policies and playback timing limits.
   a writable per-run store linked to cached blobs/manifests.
 
 See [named-client protocol](agents/client-protocol.md) and [monitor operations](../monitor/README.md).
+
+
+Sentence voice routing uses the existing `ARIA_TTS_VOICE_MAP` French/English models.
+`ARIA_TTS_CHUNKING=0` disables size grouping, but retains sentence boundaries when
+the voice changes. No detector dependency or additional model is required.
