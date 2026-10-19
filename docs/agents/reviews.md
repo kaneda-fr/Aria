@@ -1,5 +1,7 @@
 # Context review log
 
+[Language evaluation](language-context-evaluation-2026-10-19.md): six tests pass; no runtime change.
+
 ## 2026-10-18 — Local answers and history-prefill regression
 
 Clock/capability answers use runtime facts with shared history and speech. Bounded

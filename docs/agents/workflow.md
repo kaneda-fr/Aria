@@ -10,6 +10,12 @@
 
 ## Commands and prerequisites
 
+For response-language evaluation, use the [short-interaction comparison](language-context-evaluation-2026-10-19.md)
+and `scripts/e2e/language_eval.py`. Keep calibration separate from fresh cases;
+count false fallbacks, wrong voices and missed mixtures independently. Run isolated
+on Apollo with pinned local dependencies; report neutral handling and candidate
+language inventory. Detector microbenchmarks do not prove end-to-end TTS quality.
+
 For the ESP32 microphone client, use the pinned PlatformIO build and host checks in
 [its README](../../client/esp32/README.md). Run
 `python3 -m unittest discover -s client/esp32/tests -v` and
