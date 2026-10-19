@@ -1407,8 +1407,8 @@ async def _speak_reply(app: FastAPI, text: str, language: str) -> bool:
     speech = getattr(app.state, 'speech_output', None)
     if speech is not None:
         try:
-            await speech.speak(text, language=language)
-            return True
+            scheduled = await speech.speak(text, language=language)
+            return scheduled is not False
         except Exception as exc:
             log.info('ARIA.TTS.Error', extra={'fields': {'error': repr(exc)}})
     return False

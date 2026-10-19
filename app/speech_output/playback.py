@@ -51,7 +51,16 @@ class PlaybackBroker:
                 await asyncio.wait_for(future, timeout=duration + 15)
             finally:
                 self.pending.pop(clip, None)
-        return clip, asyncio.create_task(wait())
+        task = asyncio.create_task(wait())
+        def release(_):
+            # Also runs when cancellation happens before wait() starts.
+            self.pending.pop(clip, None)
+            if not future.done():
+                future.cancel()
+            elif not future.cancelled():
+                future.exception()  # Consume a failure even if wait() never ran.
+        task.add_done_callback(release)
+        return clip, task
 
     def ack(self, player, clip, status):
         self.heartbeat(player)

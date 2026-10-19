@@ -198,8 +198,8 @@ def conversation_turn(processor):
                 speech = getattr(app.state, 'speech_output', None)
                 if reply and job.speak_response and speech is not None:
                     try:
-                        await speech.speak(reply, language=turn.language)
-                        spoken = True
+                        scheduled = await speech.speak(reply, language=turn.language)
+                        spoken = scheduled is not False
                     except Exception as exc:
                         log.info('ARIA.TTS.Error', extra={'fields': {'error': repr(exc)}})
                 result = dict(success=True, response=reply, spoken=spoken,

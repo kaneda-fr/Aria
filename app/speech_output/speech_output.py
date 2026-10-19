@@ -233,6 +233,7 @@ class SpeechOutput:
     _schedule_lock: asyncio.Lock = field(init=False, default_factory=asyncio.Lock, repr=False)
     _playing: bool = field(init=False, default=False, repr=False)
     _input_revision: int = field(init=False, default=0, repr=False)
+    _interrupt_revision: int = field(init=False, default=0, repr=False)
     _quiet_until: float = field(init=False, default=0.0, repr=False)
     _voice_map: dict[str, str] = field(init=False, default_factory=dict, repr=False)
     _sonos_volume: int | None = field(init=False, default=None, repr=False)
@@ -326,10 +327,10 @@ class SpeechOutput:
             self._output_mute_revision += 1
         return self.output_status()
 
-    def _skip_output(self) -> bool:
+    def _skip_output(self, reason: str = 'output_muted') -> bool:
         self.audio_ready = asyncio.get_running_loop().create_future()
         self.audio_ready.set_result(False)
-        log.info('ARIA.TTS.Skipped', extra={'fields': {'reason': 'output_muted'}})
+        log.info('ARIA.TTS.Skipped', extra={'fields': {'reason': reason}})
         return False
 
     async def speak(self, text: str, volume: float | None = None, *, language: str | None = None) -> bool:
@@ -340,6 +341,7 @@ class SpeechOutput:
             return self._skip_output()
         language = language or detect_language(text)
         mute_revision = self._output_mute_revision
+        interrupt_revision = self._interrupt_revision
         # The shared worker bounds waiting producers; never accumulate playback tasks.
         async with self._schedule_lock:
             prior = self._task
@@ -353,6 +355,8 @@ class SpeechOutput:
                 return self._skip_output()
             vol = self._volume_default if volume is None else float(volume)
             async with self._lock:
+                if interrupt_revision != self._interrupt_revision:
+                    return self._skip_output('interrupted')
                 self.audio_ready = asyncio.get_running_loop().create_future()
                 self._task = asyncio.create_task(self._run_speak(text, vol, language, self.audio_ready, mute_revision))
                 ready = self.audio_ready
@@ -365,17 +369,21 @@ class SpeechOutput:
         NOTE: Per user request, we DO NOT automatically call this from VAD yet.
         """
 
+        # Invalidate callers already waiting for playback or the scheduling lock.
+        self._interrupt_revision += 1
         async with self._lock:
-            t = self._task
-            self._task = None
-
-        if t is not None and not t.done():
-            t.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await t
-
-        with contextlib.suppress(Exception):
-            await self._sink.stop_all()
+            try:
+                t = self._task
+                self._task = None
+                if t is not None and not t.done():
+                    t.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await t
+                with contextlib.suppress(Exception):
+                    await self._sink.stop_all()
+            finally:
+                # Requests arriving during stop_all must not restart stale output.
+                self._interrupt_revision += 1
 
     async def _run_speak(self, text: str, volume: float, language: str | None = None,
                          audio_ready: asyncio.Future[bool] | None = None,

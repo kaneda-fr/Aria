@@ -185,3 +185,17 @@ with six logging cases repeated). Seven context-check unit tests and source-revi
 coverage pass. The adapter test exercises registration, conflicting registration,
 start/finish ordering, completion, unregister, no-player fallback and input-state
 reporting without requiring the unmerged main-module helper. No real audio was used.
+
+
+PR review found three lifecycle gaps in the merge candidate: cancellation before
+broker-task startup stranded its slot; muted scheduling was ignored by two callers;
+and explicit interruption could restart already-waiting replies. Four reproduction
+cases failed before fixes and passed after. Broker completion now settles/releases
+its underlying future even before startup. Both shared/direct conversation callers
+propagate rejected scheduling and do not attach the previous playback to that turn.
+An interruption generation invalidates waiters, including requests arriving while
+sink stop is pending; new requests after interruption remain usable. Automatic
+voice interruption remains deferred. The expanded Apollo suite passes **235 tests**,
+including a fifth stop-in-progress race case and wake/conversation regressions.
+These review fixes are validated in the merge candidate; the earlier deployed run
+has not been replaced by this PR task.
