@@ -1,0 +1,3852 @@
+{
+  "version": 3,
+  "inventory_names": [
+    "Living room",
+    "Desk lamp",
+    "Salon",
+    "Lampe Noël",
+    "Étagère"
+  ],
+  "cases": [
+    {
+      "id": "dev-000",
+      "split": "dev",
+      "category": "short",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Oui."
+    },
+    {
+      "id": "dev-001",
+      "split": "dev",
+      "category": "short",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Oui."
+    },
+    {
+      "id": "dev-002",
+      "split": "dev",
+      "category": "short",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Non merci."
+    },
+    {
+      "id": "dev-003",
+      "split": "dev",
+      "category": "short",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Non merci."
+    },
+    {
+      "id": "dev-004",
+      "split": "dev",
+      "category": "short",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Bien sûr."
+    },
+    {
+      "id": "dev-005",
+      "split": "dev",
+      "category": "short",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Bien sûr."
+    },
+    {
+      "id": "dev-006",
+      "split": "dev",
+      "category": "short",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "D’accord."
+    },
+    {
+      "id": "dev-007",
+      "split": "dev",
+      "category": "short",
+      "expected": "fr",
+      "hint": "en",
+      "text": "D’accord."
+    },
+    {
+      "id": "dev-008",
+      "split": "dev",
+      "category": "short",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Je comprends."
+    },
+    {
+      "id": "dev-009",
+      "split": "dev",
+      "category": "short",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Je comprends."
+    },
+    {
+      "id": "dev-010",
+      "split": "dev",
+      "category": "short",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Pas encore."
+    },
+    {
+      "id": "dev-011",
+      "split": "dev",
+      "category": "short",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Pas encore."
+    },
+    {
+      "id": "dev-012",
+      "split": "dev",
+      "category": "short",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "C’est fait."
+    },
+    {
+      "id": "dev-013",
+      "split": "dev",
+      "category": "short",
+      "expected": "fr",
+      "hint": "en",
+      "text": "C’est fait."
+    },
+    {
+      "id": "dev-014",
+      "split": "dev",
+      "category": "short",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "La lampe est éteinte."
+    },
+    {
+      "id": "dev-015",
+      "split": "dev",
+      "category": "short",
+      "expected": "fr",
+      "hint": "en",
+      "text": "La lampe est éteinte."
+    },
+    {
+      "id": "dev-016",
+      "split": "dev",
+      "category": "short",
+      "expected": "en",
+      "hint": "fr",
+      "text": "Yes."
+    },
+    {
+      "id": "dev-017",
+      "split": "dev",
+      "category": "short",
+      "expected": "en",
+      "hint": "en",
+      "text": "Yes."
+    },
+    {
+      "id": "dev-018",
+      "split": "dev",
+      "category": "short",
+      "expected": "en",
+      "hint": "fr",
+      "text": "No thanks."
+    },
+    {
+      "id": "dev-019",
+      "split": "dev",
+      "category": "short",
+      "expected": "en",
+      "hint": "en",
+      "text": "No thanks."
+    },
+    {
+      "id": "dev-020",
+      "split": "dev",
+      "category": "short",
+      "expected": "en",
+      "hint": "fr",
+      "text": "Of course."
+    },
+    {
+      "id": "dev-021",
+      "split": "dev",
+      "category": "short",
+      "expected": "en",
+      "hint": "en",
+      "text": "Of course."
+    },
+    {
+      "id": "dev-022",
+      "split": "dev",
+      "category": "short",
+      "expected": "en",
+      "hint": "fr",
+      "text": "Understood."
+    },
+    {
+      "id": "dev-023",
+      "split": "dev",
+      "category": "short",
+      "expected": "en",
+      "hint": "en",
+      "text": "Understood."
+    },
+    {
+      "id": "dev-024",
+      "split": "dev",
+      "category": "short",
+      "expected": "en",
+      "hint": "fr",
+      "text": "Not yet."
+    },
+    {
+      "id": "dev-025",
+      "split": "dev",
+      "category": "short",
+      "expected": "en",
+      "hint": "en",
+      "text": "Not yet."
+    },
+    {
+      "id": "dev-026",
+      "split": "dev",
+      "category": "short",
+      "expected": "en",
+      "hint": "fr",
+      "text": "Done."
+    },
+    {
+      "id": "dev-027",
+      "split": "dev",
+      "category": "short",
+      "expected": "en",
+      "hint": "en",
+      "text": "Done."
+    },
+    {
+      "id": "dev-028",
+      "split": "dev",
+      "category": "short",
+      "expected": "en",
+      "hint": "fr",
+      "text": "The light is off."
+    },
+    {
+      "id": "dev-029",
+      "split": "dev",
+      "category": "short",
+      "expected": "en",
+      "hint": "en",
+      "text": "The light is off."
+    },
+    {
+      "id": "dev-030",
+      "split": "dev",
+      "category": "short",
+      "expected": "en",
+      "hint": "fr",
+      "text": "I can help."
+    },
+    {
+      "id": "dev-031",
+      "split": "dev",
+      "category": "short",
+      "expected": "en",
+      "hint": "en",
+      "text": "I can help."
+    },
+    {
+      "id": "dev-032",
+      "split": "dev",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "fr",
+      "text": "42"
+    },
+    {
+      "id": "dev-033",
+      "split": "dev",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "en",
+      "text": "42"
+    },
+    {
+      "id": "dev-034",
+      "split": "dev",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "fr",
+      "text": "Paris"
+    },
+    {
+      "id": "dev-035",
+      "split": "dev",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "en",
+      "text": "Paris"
+    },
+    {
+      "id": "dev-036",
+      "split": "dev",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "fr",
+      "text": "OK"
+    },
+    {
+      "id": "dev-037",
+      "split": "dev",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "en",
+      "text": "OK"
+    },
+    {
+      "id": "dev-038",
+      "split": "dev",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "fr",
+      "text": "21 °C"
+    },
+    {
+      "id": "dev-039",
+      "split": "dev",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "en",
+      "text": "21 °C"
+    },
+    {
+      "id": "dev-040",
+      "split": "dev",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "fr",
+      "text": "Living room"
+    },
+    {
+      "id": "dev-041",
+      "split": "dev",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "en",
+      "text": "Living room"
+    },
+    {
+      "id": "dev-042",
+      "split": "dev",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "fr",
+      "text": "Desk lamp"
+    },
+    {
+      "id": "dev-043",
+      "split": "dev",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "en",
+      "text": "Desk lamp"
+    },
+    {
+      "id": "dev-044",
+      "split": "dev",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Je ne trouve aucun appareil dans cette pièce."
+    },
+    {
+      "id": "dev-045",
+      "split": "dev",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Je ne trouve aucun appareil dans cette pièce."
+    },
+    {
+      "id": "dev-046",
+      "split": "dev",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "La commande a été enregistrée sans action réelle."
+    },
+    {
+      "id": "dev-047",
+      "split": "dev",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "en",
+      "text": "La commande a été enregistrée sans action réelle."
+    },
+    {
+      "id": "dev-048",
+      "split": "dev",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Il reste cinq minutes avant la fin du délai."
+    },
+    {
+      "id": "dev-049",
+      "split": "dev",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Il reste cinq minutes avant la fin du délai."
+    },
+    {
+      "id": "dev-050",
+      "split": "dev",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "La porte du garage est ouverte."
+    },
+    {
+      "id": "dev-051",
+      "split": "dev",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "en",
+      "text": "La porte du garage est ouverte."
+    },
+    {
+      "id": "dev-052",
+      "split": "dev",
+      "category": "normal",
+      "expected": "en",
+      "hint": "fr",
+      "text": "I cannot find any device in that room."
+    },
+    {
+      "id": "dev-053",
+      "split": "dev",
+      "category": "normal",
+      "expected": "en",
+      "hint": "en",
+      "text": "I cannot find any device in that room."
+    },
+    {
+      "id": "dev-054",
+      "split": "dev",
+      "category": "normal",
+      "expected": "en",
+      "hint": "fr",
+      "text": "The command was logged without a real action."
+    },
+    {
+      "id": "dev-055",
+      "split": "dev",
+      "category": "normal",
+      "expected": "en",
+      "hint": "en",
+      "text": "The command was logged without a real action."
+    },
+    {
+      "id": "dev-056",
+      "split": "dev",
+      "category": "normal",
+      "expected": "en",
+      "hint": "fr",
+      "text": "There are five minutes left before the timeout."
+    },
+    {
+      "id": "dev-057",
+      "split": "dev",
+      "category": "normal",
+      "expected": "en",
+      "hint": "en",
+      "text": "There are five minutes left before the timeout."
+    },
+    {
+      "id": "dev-058",
+      "split": "dev",
+      "category": "normal",
+      "expected": "en",
+      "hint": "fr",
+      "text": "The garage door is open."
+    },
+    {
+      "id": "dev-059",
+      "split": "dev",
+      "category": "normal",
+      "expected": "en",
+      "hint": "en",
+      "text": "The garage door is open."
+    },
+    {
+      "id": "dev-060",
+      "split": "dev",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "fr",
+      "text": "A porta está aberta."
+    },
+    {
+      "id": "dev-061",
+      "split": "dev",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "en",
+      "text": "A porta está aberta."
+    },
+    {
+      "id": "dev-062",
+      "split": "dev",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "fr",
+      "text": "La puerta está abierta."
+    },
+    {
+      "id": "dev-063",
+      "split": "dev",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "en",
+      "text": "La puerta está abierta."
+    },
+    {
+      "id": "dev-064",
+      "split": "dev",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "fr",
+      "text": "Die Tür ist offen."
+    },
+    {
+      "id": "dev-065",
+      "split": "dev",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "en",
+      "text": "Die Tür ist offen."
+    },
+    {
+      "id": "dev-066",
+      "split": "dev",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "fr",
+      "text": "La porta è aperta."
+    },
+    {
+      "id": "dev-067",
+      "split": "dev",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "en",
+      "text": "La porta è aperta."
+    },
+    {
+      "id": "dev-068",
+      "split": "dev",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "fr",
+      "text": "O comando foi registrado sem executar a ação."
+    },
+    {
+      "id": "dev-069",
+      "split": "dev",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "en",
+      "text": "O comando foi registrado sem executar a ação."
+    },
+    {
+      "id": "dev-070",
+      "split": "dev",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "fr",
+      "text": "El dispositivo no está disponible."
+    },
+    {
+      "id": "dev-071",
+      "split": "dev",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "en",
+      "text": "El dispositivo no está disponible."
+    },
+    {
+      "id": "dev-072",
+      "split": "dev",
+      "category": "mixed_sentence",
+      "expected": "mixed",
+      "hint": "fr",
+      "text": "La porte est ouverte. The kitchen light is still off."
+    },
+    {
+      "id": "dev-073",
+      "split": "dev",
+      "category": "mixed_sentence",
+      "expected": "mixed",
+      "hint": "en",
+      "text": "La porte est ouverte. The kitchen light is still off."
+    },
+    {
+      "id": "dev-074",
+      "split": "dev",
+      "category": "mixed_sentence",
+      "expected": "mixed",
+      "hint": "fr",
+      "text": "The command was recorded. La lampe reste éteinte."
+    },
+    {
+      "id": "dev-075",
+      "split": "dev",
+      "category": "mixed_sentence",
+      "expected": "mixed",
+      "hint": "en",
+      "text": "The command was recorded. La lampe reste éteinte."
+    },
+    {
+      "id": "dev-076",
+      "split": "dev",
+      "category": "mixed_sentence",
+      "expected": "mixed",
+      "hint": "fr",
+      "text": "La commande est enregistrée. O dispositivo está desligado."
+    },
+    {
+      "id": "dev-077",
+      "split": "dev",
+      "category": "mixed_sentence",
+      "expected": "mixed",
+      "hint": "en",
+      "text": "La commande est enregistrée. O dispositivo está desligado."
+    },
+    {
+      "id": "dev-078",
+      "split": "dev",
+      "category": "mixed_clause",
+      "expected": "mixed",
+      "hint": "fr",
+      "text": "La lampe est allumée mais the door is still open."
+    },
+    {
+      "id": "dev-079",
+      "split": "dev",
+      "category": "mixed_clause",
+      "expected": "mixed",
+      "hint": "en",
+      "text": "La lampe est allumée mais the door is still open."
+    },
+    {
+      "id": "dev-080",
+      "split": "dev",
+      "category": "mixed_clause",
+      "expected": "mixed",
+      "hint": "fr",
+      "text": "The room is cold mais la fenêtre est ouverte."
+    },
+    {
+      "id": "dev-081",
+      "split": "dev",
+      "category": "mixed_clause",
+      "expected": "mixed",
+      "hint": "en",
+      "text": "The room is cold mais la fenêtre est ouverte."
+    },
+    {
+      "id": "dev-082",
+      "split": "dev",
+      "category": "mixed_clause",
+      "expected": "mixed",
+      "hint": "fr",
+      "text": "La porte est fermée mas a janela está aberta."
+    },
+    {
+      "id": "dev-083",
+      "split": "dev",
+      "category": "mixed_clause",
+      "expected": "mixed",
+      "hint": "en",
+      "text": "La porte est fermée mas a janela está aberta."
+    },
+    {
+      "id": "dev-084",
+      "split": "dev",
+      "category": "borrowed",
+      "expected": "en",
+      "hint": "fr",
+      "text": "The café is closed today."
+    },
+    {
+      "id": "dev-085",
+      "split": "dev",
+      "category": "borrowed",
+      "expected": "en",
+      "hint": "en",
+      "text": "The café is closed today."
+    },
+    {
+      "id": "dev-086",
+      "split": "dev",
+      "category": "borrowed",
+      "expected": "en",
+      "hint": "fr",
+      "text": "Your résumé is saved on this computer."
+    },
+    {
+      "id": "dev-087",
+      "split": "dev",
+      "category": "borrowed",
+      "expected": "en",
+      "hint": "en",
+      "text": "Your résumé is saved on this computer."
+    },
+    {
+      "id": "dev-088",
+      "split": "dev",
+      "category": "borrowed",
+      "expected": "en",
+      "hint": "fr",
+      "text": "The device named Salon is offline."
+    },
+    {
+      "id": "dev-089",
+      "split": "dev",
+      "category": "borrowed",
+      "expected": "en",
+      "hint": "en",
+      "text": "The device named Salon is offline."
+    },
+    {
+      "id": "dev-090",
+      "split": "dev",
+      "category": "borrowed",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Le Wi-Fi fonctionne correctement."
+    },
+    {
+      "id": "dev-091",
+      "split": "dev",
+      "category": "borrowed",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Le Wi-Fi fonctionne correctement."
+    },
+    {
+      "id": "dev-092",
+      "split": "dev",
+      "category": "borrowed",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "La playlist jazz est prête."
+    },
+    {
+      "id": "dev-093",
+      "split": "dev",
+      "category": "borrowed",
+      "expected": "fr",
+      "hint": "en",
+      "text": "La playlist jazz est prête."
+    },
+    {
+      "id": "dev-094",
+      "split": "dev",
+      "category": "borrowed",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Le mode log-only est activé."
+    },
+    {
+      "id": "dev-095",
+      "split": "dev",
+      "category": "borrowed",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Le mode log-only est activé."
+    },
+    {
+      "id": "test-096",
+      "split": "test",
+      "category": "short",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Merci."
+    },
+    {
+      "id": "test-097",
+      "split": "test",
+      "category": "short",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Merci."
+    },
+    {
+      "id": "test-098",
+      "split": "test",
+      "category": "short",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Bonjour !"
+    },
+    {
+      "id": "test-099",
+      "split": "test",
+      "category": "short",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Bonjour !"
+    },
+    {
+      "id": "test-100",
+      "split": "test",
+      "category": "short",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Tout à fait."
+    },
+    {
+      "id": "test-101",
+      "split": "test",
+      "category": "short",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Tout à fait."
+    },
+    {
+      "id": "test-102",
+      "split": "test",
+      "category": "short",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Avec plaisir."
+    },
+    {
+      "id": "test-103",
+      "split": "test",
+      "category": "short",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Avec plaisir."
+    },
+    {
+      "id": "test-104",
+      "split": "test",
+      "category": "short",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Je ne sais pas."
+    },
+    {
+      "id": "test-105",
+      "split": "test",
+      "category": "short",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Je ne sais pas."
+    },
+    {
+      "id": "test-106",
+      "split": "test",
+      "category": "short",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Ça marche."
+    },
+    {
+      "id": "test-107",
+      "split": "test",
+      "category": "short",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Ça marche."
+    },
+    {
+      "id": "test-108",
+      "split": "test",
+      "category": "short",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Impossible pour le moment."
+    },
+    {
+      "id": "test-109",
+      "split": "test",
+      "category": "short",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Impossible pour le moment."
+    },
+    {
+      "id": "test-110",
+      "split": "test",
+      "category": "short",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Aucune lampe trouvée."
+    },
+    {
+      "id": "test-111",
+      "split": "test",
+      "category": "short",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Aucune lampe trouvée."
+    },
+    {
+      "id": "test-112",
+      "split": "test",
+      "category": "short",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Vous avez raison."
+    },
+    {
+      "id": "test-113",
+      "split": "test",
+      "category": "short",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Vous avez raison."
+    },
+    {
+      "id": "test-114",
+      "split": "test",
+      "category": "short",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Elle est fermée."
+    },
+    {
+      "id": "test-115",
+      "split": "test",
+      "category": "short",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Elle est fermée."
+    },
+    {
+      "id": "test-116",
+      "split": "test",
+      "category": "short",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Je peux vérifier."
+    },
+    {
+      "id": "test-117",
+      "split": "test",
+      "category": "short",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Je peux vérifier."
+    },
+    {
+      "id": "test-118",
+      "split": "test",
+      "category": "short",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Réessaie plus tard."
+    },
+    {
+      "id": "test-119",
+      "split": "test",
+      "category": "short",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Réessaie plus tard."
+    },
+    {
+      "id": "test-120",
+      "split": "test",
+      "category": "short",
+      "expected": "en",
+      "hint": "fr",
+      "text": "Thanks."
+    },
+    {
+      "id": "test-121",
+      "split": "test",
+      "category": "short",
+      "expected": "en",
+      "hint": "en",
+      "text": "Thanks."
+    },
+    {
+      "id": "test-122",
+      "split": "test",
+      "category": "short",
+      "expected": "en",
+      "hint": "fr",
+      "text": "Goodbye!"
+    },
+    {
+      "id": "test-123",
+      "split": "test",
+      "category": "short",
+      "expected": "en",
+      "hint": "en",
+      "text": "Goodbye!"
+    },
+    {
+      "id": "test-124",
+      "split": "test",
+      "category": "short",
+      "expected": "en",
+      "hint": "fr",
+      "text": "Absolutely."
+    },
+    {
+      "id": "test-125",
+      "split": "test",
+      "category": "short",
+      "expected": "en",
+      "hint": "en",
+      "text": "Absolutely."
+    },
+    {
+      "id": "test-126",
+      "split": "test",
+      "category": "short",
+      "expected": "en",
+      "hint": "fr",
+      "text": "You are welcome."
+    },
+    {
+      "id": "test-127",
+      "split": "test",
+      "category": "short",
+      "expected": "en",
+      "hint": "en",
+      "text": "You are welcome."
+    },
+    {
+      "id": "test-128",
+      "split": "test",
+      "category": "short",
+      "expected": "en",
+      "hint": "fr",
+      "text": "I do not know."
+    },
+    {
+      "id": "test-129",
+      "split": "test",
+      "category": "short",
+      "expected": "en",
+      "hint": "en",
+      "text": "I do not know."
+    },
+    {
+      "id": "test-130",
+      "split": "test",
+      "category": "short",
+      "expected": "en",
+      "hint": "fr",
+      "text": "All right."
+    },
+    {
+      "id": "test-131",
+      "split": "test",
+      "category": "short",
+      "expected": "en",
+      "hint": "en",
+      "text": "All right."
+    },
+    {
+      "id": "test-132",
+      "split": "test",
+      "category": "short",
+      "expected": "en",
+      "hint": "fr",
+      "text": "Not possible right now."
+    },
+    {
+      "id": "test-133",
+      "split": "test",
+      "category": "short",
+      "expected": "en",
+      "hint": "en",
+      "text": "Not possible right now."
+    },
+    {
+      "id": "test-134",
+      "split": "test",
+      "category": "short",
+      "expected": "en",
+      "hint": "fr",
+      "text": "No lights found."
+    },
+    {
+      "id": "test-135",
+      "split": "test",
+      "category": "short",
+      "expected": "en",
+      "hint": "en",
+      "text": "No lights found."
+    },
+    {
+      "id": "test-136",
+      "split": "test",
+      "category": "short",
+      "expected": "en",
+      "hint": "fr",
+      "text": "You are correct."
+    },
+    {
+      "id": "test-137",
+      "split": "test",
+      "category": "short",
+      "expected": "en",
+      "hint": "en",
+      "text": "You are correct."
+    },
+    {
+      "id": "test-138",
+      "split": "test",
+      "category": "short",
+      "expected": "en",
+      "hint": "fr",
+      "text": "It is closed."
+    },
+    {
+      "id": "test-139",
+      "split": "test",
+      "category": "short",
+      "expected": "en",
+      "hint": "en",
+      "text": "It is closed."
+    },
+    {
+      "id": "test-140",
+      "split": "test",
+      "category": "short",
+      "expected": "en",
+      "hint": "fr",
+      "text": "I can check."
+    },
+    {
+      "id": "test-141",
+      "split": "test",
+      "category": "short",
+      "expected": "en",
+      "hint": "en",
+      "text": "I can check."
+    },
+    {
+      "id": "test-142",
+      "split": "test",
+      "category": "short",
+      "expected": "en",
+      "hint": "fr",
+      "text": "Try again later."
+    },
+    {
+      "id": "test-143",
+      "split": "test",
+      "category": "short",
+      "expected": "en",
+      "hint": "en",
+      "text": "Try again later."
+    },
+    {
+      "id": "test-144",
+      "split": "test",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "fr",
+      "text": "7"
+    },
+    {
+      "id": "test-145",
+      "split": "test",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "en",
+      "text": "7"
+    },
+    {
+      "id": "test-146",
+      "split": "test",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "fr",
+      "text": "18:45"
+    },
+    {
+      "id": "test-147",
+      "split": "test",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "en",
+      "text": "18:45"
+    },
+    {
+      "id": "test-148",
+      "split": "test",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "fr",
+      "text": "3,5"
+    },
+    {
+      "id": "test-149",
+      "split": "test",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "en",
+      "text": "3,5"
+    },
+    {
+      "id": "test-150",
+      "split": "test",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "fr",
+      "text": "-2 °C"
+    },
+    {
+      "id": "test-151",
+      "split": "test",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "en",
+      "text": "-2 °C"
+    },
+    {
+      "id": "test-152",
+      "split": "test",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "fr",
+      "text": "50 %"
+    },
+    {
+      "id": "test-153",
+      "split": "test",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "en",
+      "text": "50 %"
+    },
+    {
+      "id": "test-154",
+      "split": "test",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "fr",
+      "text": "300 W"
+    },
+    {
+      "id": "test-155",
+      "split": "test",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "en",
+      "text": "300 W"
+    },
+    {
+      "id": "test-156",
+      "split": "test",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "fr",
+      "text": "Paul"
+    },
+    {
+      "id": "test-157",
+      "split": "test",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "en",
+      "text": "Paul"
+    },
+    {
+      "id": "test-158",
+      "split": "test",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "fr",
+      "text": "Aurora"
+    },
+    {
+      "id": "test-159",
+      "split": "test",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "en",
+      "text": "Aurora"
+    },
+    {
+      "id": "test-160",
+      "split": "test",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "fr",
+      "text": "Kitchen"
+    },
+    {
+      "id": "test-161",
+      "split": "test",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "en",
+      "text": "Kitchen"
+    },
+    {
+      "id": "test-162",
+      "split": "test",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "fr",
+      "text": "Salon"
+    },
+    {
+      "id": "test-163",
+      "split": "test",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "en",
+      "text": "Salon"
+    },
+    {
+      "id": "test-164",
+      "split": "test",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "fr",
+      "text": "Lampe Noël"
+    },
+    {
+      "id": "test-165",
+      "split": "test",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "en",
+      "text": "Lampe Noël"
+    },
+    {
+      "id": "test-166",
+      "split": "test",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "fr",
+      "text": "Étagère"
+    },
+    {
+      "id": "test-167",
+      "split": "test",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "en",
+      "text": "Étagère"
+    },
+    {
+      "id": "test-168",
+      "split": "test",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "fr",
+      "text": "HTTP 404"
+    },
+    {
+      "id": "test-169",
+      "split": "test",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "en",
+      "text": "HTTP 404"
+    },
+    {
+      "id": "test-170",
+      "split": "test",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "fr",
+      "text": "ESP32"
+    },
+    {
+      "id": "test-171",
+      "split": "test",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "en",
+      "text": "ESP32"
+    },
+    {
+      "id": "test-172",
+      "split": "test",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "fr",
+      "text": "192.168.1.8"
+    },
+    {
+      "id": "test-173",
+      "split": "test",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "en",
+      "text": "192.168.1.8"
+    },
+    {
+      "id": "test-174",
+      "split": "test",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "fr",
+      "text": "A-17"
+    },
+    {
+      "id": "test-175",
+      "split": "test",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "en",
+      "text": "A-17"
+    },
+    {
+      "id": "test-176",
+      "split": "test",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Les volets sont déjà fermés."
+    },
+    {
+      "id": "test-177",
+      "split": "test",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Les volets sont déjà fermés."
+    },
+    {
+      "id": "test-178",
+      "split": "test",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Je peux rechercher cet appareil dans la maison."
+    },
+    {
+      "id": "test-179",
+      "split": "test",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Je peux rechercher cet appareil dans la maison."
+    },
+    {
+      "id": "test-180",
+      "split": "test",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Le capteur indique une température de dix-neuf degrés."
+    },
+    {
+      "id": "test-181",
+      "split": "test",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Le capteur indique une température de dix-neuf degrés."
+    },
+    {
+      "id": "test-182",
+      "split": "test",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Je n’ai pas reçu de confirmation de cet appareil."
+    },
+    {
+      "id": "test-183",
+      "split": "test",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Je n’ai pas reçu de confirmation de cet appareil."
+    },
+    {
+      "id": "test-184",
+      "split": "test",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Le son a besoin de matière pour se propager."
+    },
+    {
+      "id": "test-185",
+      "split": "test",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Le son a besoin de matière pour se propager."
+    },
+    {
+      "id": "test-186",
+      "split": "test",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "La capitale de la France est Paris."
+    },
+    {
+      "id": "test-187",
+      "split": "test",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "en",
+      "text": "La capitale de la France est Paris."
+    },
+    {
+      "id": "test-188",
+      "split": "test",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Il pleut actuellement près de chez vous."
+    },
+    {
+      "id": "test-189",
+      "split": "test",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Il pleut actuellement près de chez vous."
+    },
+    {
+      "id": "test-190",
+      "split": "test",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "La minuterie se terminera dans deux minutes."
+    },
+    {
+      "id": "test-191",
+      "split": "test",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "en",
+      "text": "La minuterie se terminera dans deux minutes."
+    },
+    {
+      "id": "test-192",
+      "split": "test",
+      "category": "normal",
+      "expected": "en",
+      "hint": "fr",
+      "text": "The blinds are already closed."
+    },
+    {
+      "id": "test-193",
+      "split": "test",
+      "category": "normal",
+      "expected": "en",
+      "hint": "en",
+      "text": "The blinds are already closed."
+    },
+    {
+      "id": "test-194",
+      "split": "test",
+      "category": "normal",
+      "expected": "en",
+      "hint": "fr",
+      "text": "I can look for that device in the house."
+    },
+    {
+      "id": "test-195",
+      "split": "test",
+      "category": "normal",
+      "expected": "en",
+      "hint": "en",
+      "text": "I can look for that device in the house."
+    },
+    {
+      "id": "test-196",
+      "split": "test",
+      "category": "normal",
+      "expected": "en",
+      "hint": "fr",
+      "text": "The sensor reports a temperature of nineteen degrees."
+    },
+    {
+      "id": "test-197",
+      "split": "test",
+      "category": "normal",
+      "expected": "en",
+      "hint": "en",
+      "text": "The sensor reports a temperature of nineteen degrees."
+    },
+    {
+      "id": "test-198",
+      "split": "test",
+      "category": "normal",
+      "expected": "en",
+      "hint": "fr",
+      "text": "I have not received confirmation from that device."
+    },
+    {
+      "id": "test-199",
+      "split": "test",
+      "category": "normal",
+      "expected": "en",
+      "hint": "en",
+      "text": "I have not received confirmation from that device."
+    },
+    {
+      "id": "test-200",
+      "split": "test",
+      "category": "normal",
+      "expected": "en",
+      "hint": "fr",
+      "text": "Sound needs a material medium to travel."
+    },
+    {
+      "id": "test-201",
+      "split": "test",
+      "category": "normal",
+      "expected": "en",
+      "hint": "en",
+      "text": "Sound needs a material medium to travel."
+    },
+    {
+      "id": "test-202",
+      "split": "test",
+      "category": "normal",
+      "expected": "en",
+      "hint": "fr",
+      "text": "The capital of France is Paris."
+    },
+    {
+      "id": "test-203",
+      "split": "test",
+      "category": "normal",
+      "expected": "en",
+      "hint": "en",
+      "text": "The capital of France is Paris."
+    },
+    {
+      "id": "test-204",
+      "split": "test",
+      "category": "normal",
+      "expected": "en",
+      "hint": "fr",
+      "text": "It is currently raining near your home."
+    },
+    {
+      "id": "test-205",
+      "split": "test",
+      "category": "normal",
+      "expected": "en",
+      "hint": "en",
+      "text": "It is currently raining near your home."
+    },
+    {
+      "id": "test-206",
+      "split": "test",
+      "category": "normal",
+      "expected": "en",
+      "hint": "fr",
+      "text": "The timer will finish in two minutes."
+    },
+    {
+      "id": "test-207",
+      "split": "test",
+      "category": "normal",
+      "expected": "en",
+      "hint": "en",
+      "text": "The timer will finish in two minutes."
+    },
+    {
+      "id": "test-208",
+      "split": "test",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "fr",
+      "text": "A luz da cozinha está apagada."
+    },
+    {
+      "id": "test-209",
+      "split": "test",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "en",
+      "text": "A luz da cozinha está apagada."
+    },
+    {
+      "id": "test-210",
+      "split": "test",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "fr",
+      "text": "Não consigo encontrar esse dispositivo."
+    },
+    {
+      "id": "test-211",
+      "split": "test",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "en",
+      "text": "Não consigo encontrar esse dispositivo."
+    },
+    {
+      "id": "test-212",
+      "split": "test",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "fr",
+      "text": "A temperatura está caindo agora."
+    },
+    {
+      "id": "test-213",
+      "split": "test",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "en",
+      "text": "A temperatura está caindo agora."
+    },
+    {
+      "id": "test-214",
+      "split": "test",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "fr",
+      "text": "La luz de la cocina está apagada."
+    },
+    {
+      "id": "test-215",
+      "split": "test",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "en",
+      "text": "La luz de la cocina está apagada."
+    },
+    {
+      "id": "test-216",
+      "split": "test",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "fr",
+      "text": "No puedo encontrar ese dispositivo."
+    },
+    {
+      "id": "test-217",
+      "split": "test",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "en",
+      "text": "No puedo encontrar ese dispositivo."
+    },
+    {
+      "id": "test-218",
+      "split": "test",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "fr",
+      "text": "La temperatura está bajando ahora."
+    },
+    {
+      "id": "test-219",
+      "split": "test",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "en",
+      "text": "La temperatura está bajando ahora."
+    },
+    {
+      "id": "test-220",
+      "split": "test",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "fr",
+      "text": "Das Licht in der Küche ist ausgeschaltet."
+    },
+    {
+      "id": "test-221",
+      "split": "test",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "en",
+      "text": "Das Licht in der Küche ist ausgeschaltet."
+    },
+    {
+      "id": "test-222",
+      "split": "test",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "fr",
+      "text": "Ich kann dieses Gerät nicht finden."
+    },
+    {
+      "id": "test-223",
+      "split": "test",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "en",
+      "text": "Ich kann dieses Gerät nicht finden."
+    },
+    {
+      "id": "test-224",
+      "split": "test",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "fr",
+      "text": "La luce della cucina è spenta."
+    },
+    {
+      "id": "test-225",
+      "split": "test",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "en",
+      "text": "La luce della cucina è spenta."
+    },
+    {
+      "id": "test-226",
+      "split": "test",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "fr",
+      "text": "Non riesco a trovare questo dispositivo."
+    },
+    {
+      "id": "test-227",
+      "split": "test",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "en",
+      "text": "Non riesco a trovare questo dispositivo."
+    },
+    {
+      "id": "test-228",
+      "split": "test",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "fr",
+      "text": "De lamp in de keuken is uit."
+    },
+    {
+      "id": "test-229",
+      "split": "test",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "en",
+      "text": "De lamp in de keuken is uit."
+    },
+    {
+      "id": "test-230",
+      "split": "test",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "fr",
+      "text": "Het raam staat nog open."
+    },
+    {
+      "id": "test-231",
+      "split": "test",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "en",
+      "text": "Het raam staat nog open."
+    },
+    {
+      "id": "test-232",
+      "split": "test",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "fr",
+      "text": "Свет на кухне выключен."
+    },
+    {
+      "id": "test-233",
+      "split": "test",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "en",
+      "text": "Свет на кухне выключен."
+    },
+    {
+      "id": "test-234",
+      "split": "test",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "fr",
+      "text": "厨房的灯已经关了。"
+    },
+    {
+      "id": "test-235",
+      "split": "test",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "en",
+      "text": "厨房的灯已经关了。"
+    },
+    {
+      "id": "test-236",
+      "split": "test",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "fr",
+      "text": "الضوء في المطبخ مطفأ."
+    },
+    {
+      "id": "test-237",
+      "split": "test",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "en",
+      "text": "الضوء في المطبخ مطفأ."
+    },
+    {
+      "id": "test-238",
+      "split": "test",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "fr",
+      "text": "キッチンの照明は消えています。"
+    },
+    {
+      "id": "test-239",
+      "split": "test",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "en",
+      "text": "キッチンの照明は消えています。"
+    },
+    {
+      "id": "test-240",
+      "split": "test",
+      "category": "mixed_sentence",
+      "expected": "mixed",
+      "hint": "fr",
+      "text": "La lumière est éteinte. The window is still open."
+    },
+    {
+      "id": "test-241",
+      "split": "test",
+      "category": "mixed_sentence",
+      "expected": "mixed",
+      "hint": "en",
+      "text": "La lumière est éteinte. The window is still open."
+    },
+    {
+      "id": "test-242",
+      "split": "test",
+      "category": "mixed_sentence",
+      "expected": "mixed",
+      "hint": "fr",
+      "text": "The timer has stopped. Vous pouvez en créer un autre."
+    },
+    {
+      "id": "test-243",
+      "split": "test",
+      "category": "mixed_sentence",
+      "expected": "mixed",
+      "hint": "en",
+      "text": "The timer has stopped. Vous pouvez en créer un autre."
+    },
+    {
+      "id": "test-244",
+      "split": "test",
+      "category": "mixed_sentence",
+      "expected": "mixed",
+      "hint": "fr",
+      "text": "Le volet est fermé. A janela continua aberta."
+    },
+    {
+      "id": "test-245",
+      "split": "test",
+      "category": "mixed_sentence",
+      "expected": "mixed",
+      "hint": "en",
+      "text": "Le volet est fermé. A janela continua aberta."
+    },
+    {
+      "id": "test-246",
+      "split": "test",
+      "category": "mixed_sentence",
+      "expected": "mixed",
+      "hint": "fr",
+      "text": "The bedroom is warm. La ventana sigue abierta."
+    },
+    {
+      "id": "test-247",
+      "split": "test",
+      "category": "mixed_sentence",
+      "expected": "mixed",
+      "hint": "en",
+      "text": "The bedroom is warm. La ventana sigue abierta."
+    },
+    {
+      "id": "test-248",
+      "split": "test",
+      "category": "mixed_sentence",
+      "expected": "mixed",
+      "hint": "fr",
+      "text": "Le son ne traverse pas le vide. Sound needs a medium to travel."
+    },
+    {
+      "id": "test-249",
+      "split": "test",
+      "category": "mixed_sentence",
+      "expected": "mixed",
+      "hint": "en",
+      "text": "Le son ne traverse pas le vide. Sound needs a medium to travel."
+    },
+    {
+      "id": "test-250",
+      "split": "test",
+      "category": "mixed_sentence",
+      "expected": "mixed",
+      "hint": "fr",
+      "text": "La Terre tourne sur elle-même. A rotação explica o dia e a noite."
+    },
+    {
+      "id": "test-251",
+      "split": "test",
+      "category": "mixed_sentence",
+      "expected": "mixed",
+      "hint": "en",
+      "text": "La Terre tourne sur elle-même. A rotação explica o dia e a noite."
+    },
+    {
+      "id": "test-252",
+      "split": "test",
+      "category": "mixed_clause",
+      "expected": "mixed",
+      "hint": "fr",
+      "text": "Le volet est fermé et the window is still open."
+    },
+    {
+      "id": "test-253",
+      "split": "test",
+      "category": "mixed_clause",
+      "expected": "mixed",
+      "hint": "en",
+      "text": "Le volet est fermé et the window is still open."
+    },
+    {
+      "id": "test-254",
+      "split": "test",
+      "category": "mixed_clause",
+      "expected": "mixed",
+      "hint": "fr",
+      "text": "The light is off mais le chauffage fonctionne."
+    },
+    {
+      "id": "test-255",
+      "split": "test",
+      "category": "mixed_clause",
+      "expected": "mixed",
+      "hint": "en",
+      "text": "The light is off mais le chauffage fonctionne."
+    },
+    {
+      "id": "test-256",
+      "split": "test",
+      "category": "mixed_clause",
+      "expected": "mixed",
+      "hint": "fr",
+      "text": "La température augmente porque la ventana está abierta."
+    },
+    {
+      "id": "test-257",
+      "split": "test",
+      "category": "mixed_clause",
+      "expected": "mixed",
+      "hint": "en",
+      "text": "La température augmente porque la ventana está abierta."
+    },
+    {
+      "id": "test-258",
+      "split": "test",
+      "category": "mixed_clause",
+      "expected": "mixed",
+      "hint": "fr",
+      "text": "The device is unavailable porque o servidor está desligado."
+    },
+    {
+      "id": "test-259",
+      "split": "test",
+      "category": "mixed_clause",
+      "expected": "mixed",
+      "hint": "en",
+      "text": "The device is unavailable porque o servidor está desligado."
+    },
+    {
+      "id": "test-260",
+      "split": "test",
+      "category": "mixed_clause",
+      "expected": "mixed",
+      "hint": "fr",
+      "text": "Les plantes utilisent la lumière et produzem oxigênio durante o dia."
+    },
+    {
+      "id": "test-261",
+      "split": "test",
+      "category": "mixed_clause",
+      "expected": "mixed",
+      "hint": "en",
+      "text": "Les plantes utilisent la lumière et produzem oxigênio durante o dia."
+    },
+    {
+      "id": "test-262",
+      "split": "test",
+      "category": "mixed_clause",
+      "expected": "mixed",
+      "hint": "fr",
+      "text": "La pièce est chaude but the heater is switched off."
+    },
+    {
+      "id": "test-263",
+      "split": "test",
+      "category": "mixed_clause",
+      "expected": "mixed",
+      "hint": "en",
+      "text": "La pièce est chaude but the heater is switched off."
+    },
+    {
+      "id": "test-264",
+      "split": "test",
+      "category": "borrowed",
+      "expected": "en",
+      "hint": "fr",
+      "text": "The crème brûlée is in the refrigerator."
+    },
+    {
+      "id": "test-265",
+      "split": "test",
+      "category": "borrowed",
+      "expected": "en",
+      "hint": "en",
+      "text": "The crème brûlée is in the refrigerator."
+    },
+    {
+      "id": "test-266",
+      "split": "test",
+      "category": "borrowed",
+      "expected": "en",
+      "hint": "fr",
+      "text": "The lamp named Étagère is disconnected."
+    },
+    {
+      "id": "test-267",
+      "split": "test",
+      "category": "borrowed",
+      "expected": "en",
+      "hint": "en",
+      "text": "The lamp named Étagère is disconnected."
+    },
+    {
+      "id": "test-268",
+      "split": "test",
+      "category": "borrowed",
+      "expected": "en",
+      "hint": "fr",
+      "text": "René has switched off the hallway light."
+    },
+    {
+      "id": "test-269",
+      "split": "test",
+      "category": "borrowed",
+      "expected": "en",
+      "hint": "en",
+      "text": "René has switched off the hallway light."
+    },
+    {
+      "id": "test-270",
+      "split": "test",
+      "category": "borrowed",
+      "expected": "en",
+      "hint": "fr",
+      "text": "The word bonjour means hello in French."
+    },
+    {
+      "id": "test-271",
+      "split": "test",
+      "category": "borrowed",
+      "expected": "en",
+      "hint": "en",
+      "text": "The word bonjour means hello in French."
+    },
+    {
+      "id": "test-272",
+      "split": "test",
+      "category": "borrowed",
+      "expected": "en",
+      "hint": "fr",
+      "text": "Please choose the French voice for the next reply."
+    },
+    {
+      "id": "test-273",
+      "split": "test",
+      "category": "borrowed",
+      "expected": "en",
+      "hint": "en",
+      "text": "Please choose the French voice for the next reply."
+    },
+    {
+      "id": "test-274",
+      "split": "test",
+      "category": "borrowed",
+      "expected": "en",
+      "hint": "fr",
+      "text": "Your déjà vu example is interesting."
+    },
+    {
+      "id": "test-275",
+      "split": "test",
+      "category": "borrowed",
+      "expected": "en",
+      "hint": "en",
+      "text": "Your déjà vu example is interesting."
+    },
+    {
+      "id": "test-276",
+      "split": "test",
+      "category": "borrowed",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Le Bluetooth du haut-parleur est désactivé."
+    },
+    {
+      "id": "test-277",
+      "split": "test",
+      "category": "borrowed",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Le Bluetooth du haut-parleur est désactivé."
+    },
+    {
+      "id": "test-278",
+      "split": "test",
+      "category": "borrowed",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Le podcast est disponible sur le réseau local."
+    },
+    {
+      "id": "test-279",
+      "split": "test",
+      "category": "borrowed",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Le podcast est disponible sur le réseau local."
+    },
+    {
+      "id": "test-280",
+      "split": "test",
+      "category": "borrowed",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "La lampe appelée Desk lamp est allumée."
+    },
+    {
+      "id": "test-281",
+      "split": "test",
+      "category": "borrowed",
+      "expected": "fr",
+      "hint": "en",
+      "text": "La lampe appelée Desk lamp est allumée."
+    },
+    {
+      "id": "test-282",
+      "split": "test",
+      "category": "borrowed",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Le mot hello signifie bonjour en anglais."
+    },
+    {
+      "id": "test-283",
+      "split": "test",
+      "category": "borrowed",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Le mot hello signifie bonjour en anglais."
+    },
+    {
+      "id": "test-284",
+      "split": "test",
+      "category": "borrowed",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Le serveur répond avec le code HTTP 404."
+    },
+    {
+      "id": "test-285",
+      "split": "test",
+      "category": "borrowed",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Le serveur répond avec le code HTTP 404."
+    },
+    {
+      "id": "test-286",
+      "split": "test",
+      "category": "borrowed",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Le planning du week-end est enregistré."
+    },
+    {
+      "id": "test-287",
+      "split": "test",
+      "category": "borrowed",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Le planning du week-end est enregistré."
+    },
+    {
+      "id": "confirm-000",
+      "split": "confirmation",
+      "category": "short",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Bien reçu."
+    },
+    {
+      "id": "confirm-001",
+      "split": "confirmation",
+      "category": "short",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Bien reçu."
+    },
+    {
+      "id": "confirm-002",
+      "split": "confirmation",
+      "category": "short",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Attendez un instant."
+    },
+    {
+      "id": "confirm-003",
+      "split": "confirmation",
+      "category": "short",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Attendez un instant."
+    },
+    {
+      "id": "confirm-004",
+      "split": "confirmation",
+      "category": "short",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Je suis prête."
+    },
+    {
+      "id": "confirm-005",
+      "split": "confirmation",
+      "category": "short",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Je suis prête."
+    },
+    {
+      "id": "confirm-006",
+      "split": "confirmation",
+      "category": "short",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Tout est prêt."
+    },
+    {
+      "id": "confirm-007",
+      "split": "confirmation",
+      "category": "short",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Tout est prêt."
+    },
+    {
+      "id": "confirm-008",
+      "split": "confirmation",
+      "category": "short",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "C’est confirmé."
+    },
+    {
+      "id": "confirm-009",
+      "split": "confirmation",
+      "category": "short",
+      "expected": "fr",
+      "hint": "en",
+      "text": "C’est confirmé."
+    },
+    {
+      "id": "confirm-010",
+      "split": "confirmation",
+      "category": "short",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Rien à signaler."
+    },
+    {
+      "id": "confirm-011",
+      "split": "confirmation",
+      "category": "short",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Rien à signaler."
+    },
+    {
+      "id": "confirm-012",
+      "split": "confirmation",
+      "category": "short",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "À bientôt."
+    },
+    {
+      "id": "confirm-013",
+      "split": "confirmation",
+      "category": "short",
+      "expected": "fr",
+      "hint": "en",
+      "text": "À bientôt."
+    },
+    {
+      "id": "confirm-014",
+      "split": "confirmation",
+      "category": "short",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Je vous écoute."
+    },
+    {
+      "id": "confirm-015",
+      "split": "confirmation",
+      "category": "short",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Je vous écoute."
+    },
+    {
+      "id": "confirm-016",
+      "split": "confirmation",
+      "category": "short",
+      "expected": "en",
+      "hint": "fr",
+      "text": "Got it."
+    },
+    {
+      "id": "confirm-017",
+      "split": "confirmation",
+      "category": "short",
+      "expected": "en",
+      "hint": "en",
+      "text": "Got it."
+    },
+    {
+      "id": "confirm-018",
+      "split": "confirmation",
+      "category": "short",
+      "expected": "en",
+      "hint": "fr",
+      "text": "Please wait a moment."
+    },
+    {
+      "id": "confirm-019",
+      "split": "confirmation",
+      "category": "short",
+      "expected": "en",
+      "hint": "en",
+      "text": "Please wait a moment."
+    },
+    {
+      "id": "confirm-020",
+      "split": "confirmation",
+      "category": "short",
+      "expected": "en",
+      "hint": "fr",
+      "text": "I am ready."
+    },
+    {
+      "id": "confirm-021",
+      "split": "confirmation",
+      "category": "short",
+      "expected": "en",
+      "hint": "en",
+      "text": "I am ready."
+    },
+    {
+      "id": "confirm-022",
+      "split": "confirmation",
+      "category": "short",
+      "expected": "en",
+      "hint": "fr",
+      "text": "Everything is ready."
+    },
+    {
+      "id": "confirm-023",
+      "split": "confirmation",
+      "category": "short",
+      "expected": "en",
+      "hint": "en",
+      "text": "Everything is ready."
+    },
+    {
+      "id": "confirm-024",
+      "split": "confirmation",
+      "category": "short",
+      "expected": "en",
+      "hint": "fr",
+      "text": "That is confirmed."
+    },
+    {
+      "id": "confirm-025",
+      "split": "confirmation",
+      "category": "short",
+      "expected": "en",
+      "hint": "en",
+      "text": "That is confirmed."
+    },
+    {
+      "id": "confirm-026",
+      "split": "confirmation",
+      "category": "short",
+      "expected": "en",
+      "hint": "fr",
+      "text": "Nothing to report."
+    },
+    {
+      "id": "confirm-027",
+      "split": "confirmation",
+      "category": "short",
+      "expected": "en",
+      "hint": "en",
+      "text": "Nothing to report."
+    },
+    {
+      "id": "confirm-028",
+      "split": "confirmation",
+      "category": "short",
+      "expected": "en",
+      "hint": "fr",
+      "text": "See you soon."
+    },
+    {
+      "id": "confirm-029",
+      "split": "confirmation",
+      "category": "short",
+      "expected": "en",
+      "hint": "en",
+      "text": "See you soon."
+    },
+    {
+      "id": "confirm-030",
+      "split": "confirmation",
+      "category": "short",
+      "expected": "en",
+      "hint": "fr",
+      "text": "I am listening."
+    },
+    {
+      "id": "confirm-031",
+      "split": "confirmation",
+      "category": "short",
+      "expected": "en",
+      "hint": "en",
+      "text": "I am listening."
+    },
+    {
+      "id": "confirm-032",
+      "split": "confirmation",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "fr",
+      "text": "96"
+    },
+    {
+      "id": "confirm-033",
+      "split": "confirmation",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "en",
+      "text": "96"
+    },
+    {
+      "id": "confirm-034",
+      "split": "confirmation",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "fr",
+      "text": "07:30"
+    },
+    {
+      "id": "confirm-035",
+      "split": "confirmation",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "en",
+      "text": "07:30"
+    },
+    {
+      "id": "confirm-036",
+      "split": "confirmation",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "fr",
+      "text": "-5,2"
+    },
+    {
+      "id": "confirm-037",
+      "split": "confirmation",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "en",
+      "text": "-5,2"
+    },
+    {
+      "id": "confirm-038",
+      "split": "confirmation",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "fr",
+      "text": "42 kWh"
+    },
+    {
+      "id": "confirm-039",
+      "split": "confirmation",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "en",
+      "text": "42 kWh"
+    },
+    {
+      "id": "confirm-040",
+      "split": "confirmation",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "fr",
+      "text": "B-28"
+    },
+    {
+      "id": "confirm-041",
+      "split": "confirmation",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "en",
+      "text": "B-28"
+    },
+    {
+      "id": "confirm-042",
+      "split": "confirmation",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "fr",
+      "text": "RGB_03"
+    },
+    {
+      "id": "confirm-043",
+      "split": "confirmation",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "en",
+      "text": "RGB_03"
+    },
+    {
+      "id": "confirm-044",
+      "split": "confirmation",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "fr",
+      "text": "Luc"
+    },
+    {
+      "id": "confirm-045",
+      "split": "confirmation",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "en",
+      "text": "Luc"
+    },
+    {
+      "id": "confirm-046",
+      "split": "confirmation",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "fr",
+      "text": "Office"
+    },
+    {
+      "id": "confirm-047",
+      "split": "confirmation",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "en",
+      "text": "Office"
+    },
+    {
+      "id": "confirm-048",
+      "split": "confirmation",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "La batterie du capteur est presque vide."
+    },
+    {
+      "id": "confirm-049",
+      "split": "confirmation",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "en",
+      "text": "La batterie du capteur est presque vide."
+    },
+    {
+      "id": "confirm-050",
+      "split": "confirmation",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Je ne peux pas vérifier la position du store."
+    },
+    {
+      "id": "confirm-051",
+      "split": "confirmation",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Je ne peux pas vérifier la position du store."
+    },
+    {
+      "id": "confirm-052",
+      "split": "confirmation",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Les lumières du couloir restent allumées."
+    },
+    {
+      "id": "confirm-053",
+      "split": "confirmation",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Les lumières du couloir restent allumées."
+    },
+    {
+      "id": "confirm-054",
+      "split": "confirmation",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Aucun changement n’a été envoyé au chauffage."
+    },
+    {
+      "id": "confirm-055",
+      "split": "confirmation",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Aucun changement n’a été envoyé au chauffage."
+    },
+    {
+      "id": "confirm-056",
+      "split": "confirmation",
+      "category": "normal",
+      "expected": "en",
+      "hint": "fr",
+      "text": "The sensor battery is almost empty."
+    },
+    {
+      "id": "confirm-057",
+      "split": "confirmation",
+      "category": "normal",
+      "expected": "en",
+      "hint": "en",
+      "text": "The sensor battery is almost empty."
+    },
+    {
+      "id": "confirm-058",
+      "split": "confirmation",
+      "category": "normal",
+      "expected": "en",
+      "hint": "fr",
+      "text": "I cannot verify the position of the blind."
+    },
+    {
+      "id": "confirm-059",
+      "split": "confirmation",
+      "category": "normal",
+      "expected": "en",
+      "hint": "en",
+      "text": "I cannot verify the position of the blind."
+    },
+    {
+      "id": "confirm-060",
+      "split": "confirmation",
+      "category": "normal",
+      "expected": "en",
+      "hint": "fr",
+      "text": "The hallway lights remain on."
+    },
+    {
+      "id": "confirm-061",
+      "split": "confirmation",
+      "category": "normal",
+      "expected": "en",
+      "hint": "en",
+      "text": "The hallway lights remain on."
+    },
+    {
+      "id": "confirm-062",
+      "split": "confirmation",
+      "category": "normal",
+      "expected": "en",
+      "hint": "fr",
+      "text": "No change was sent to the heating system."
+    },
+    {
+      "id": "confirm-063",
+      "split": "confirmation",
+      "category": "normal",
+      "expected": "en",
+      "hint": "en",
+      "text": "No change was sent to the heating system."
+    },
+    {
+      "id": "confirm-064",
+      "split": "confirmation",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "fr",
+      "text": "O sensor está sem bateria."
+    },
+    {
+      "id": "confirm-065",
+      "split": "confirmation",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "en",
+      "text": "O sensor está sem bateria."
+    },
+    {
+      "id": "confirm-066",
+      "split": "confirmation",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "fr",
+      "text": "El sensor no tiene batería."
+    },
+    {
+      "id": "confirm-067",
+      "split": "confirmation",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "en",
+      "text": "El sensor no tiene batería."
+    },
+    {
+      "id": "confirm-068",
+      "split": "confirmation",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "fr",
+      "text": "Der Sensor hat keine Batterie mehr."
+    },
+    {
+      "id": "confirm-069",
+      "split": "confirmation",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "en",
+      "text": "Der Sensor hat keine Batterie mehr."
+    },
+    {
+      "id": "confirm-070",
+      "split": "confirmation",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "fr",
+      "text": "Il sensore ha la batteria scarica."
+    },
+    {
+      "id": "confirm-071",
+      "split": "confirmation",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "en",
+      "text": "Il sensore ha la batteria scarica."
+    },
+    {
+      "id": "confirm-072",
+      "split": "confirmation",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "fr",
+      "text": "De batterij van de sensor is leeg."
+    },
+    {
+      "id": "confirm-073",
+      "split": "confirmation",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "en",
+      "text": "De batterij van de sensor is leeg."
+    },
+    {
+      "id": "confirm-074",
+      "split": "confirmation",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "fr",
+      "text": "Lyset i gangen er slukket."
+    },
+    {
+      "id": "confirm-075",
+      "split": "confirmation",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "en",
+      "text": "Lyset i gangen er slukket."
+    },
+    {
+      "id": "confirm-076",
+      "split": "confirmation",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "fr",
+      "text": "传感器的电池电量很低。"
+    },
+    {
+      "id": "confirm-077",
+      "split": "confirmation",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "en",
+      "text": "传感器的电池电量很低。"
+    },
+    {
+      "id": "confirm-078",
+      "split": "confirmation",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "fr",
+      "text": "センサーの電池が少なくなっています。"
+    },
+    {
+      "id": "confirm-079",
+      "split": "confirmation",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "en",
+      "text": "センサーの電池が少なくなっています。"
+    },
+    {
+      "id": "confirm-080",
+      "split": "confirmation",
+      "category": "mixed_sentence",
+      "expected": "mixed",
+      "hint": "fr",
+      "text": "Le chauffage est arrêté. The temperature is still falling."
+    },
+    {
+      "id": "confirm-081",
+      "split": "confirmation",
+      "category": "mixed_sentence",
+      "expected": "mixed",
+      "hint": "en",
+      "text": "Le chauffage est arrêté. The temperature is still falling."
+    },
+    {
+      "id": "confirm-082",
+      "split": "confirmation",
+      "category": "mixed_sentence",
+      "expected": "mixed",
+      "hint": "fr",
+      "text": "The lamp cannot be reached. Le serveur ne reçoit aucune réponse."
+    },
+    {
+      "id": "confirm-083",
+      "split": "confirmation",
+      "category": "mixed_sentence",
+      "expected": "mixed",
+      "hint": "en",
+      "text": "The lamp cannot be reached. Le serveur ne reçoit aucune réponse."
+    },
+    {
+      "id": "confirm-084",
+      "split": "confirmation",
+      "category": "mixed_sentence",
+      "expected": "mixed",
+      "hint": "fr",
+      "text": "La batterie est faible. O sensor precisa de manutenção."
+    },
+    {
+      "id": "confirm-085",
+      "split": "confirmation",
+      "category": "mixed_sentence",
+      "expected": "mixed",
+      "hint": "en",
+      "text": "La batterie est faible. O sensor precisa de manutenção."
+    },
+    {
+      "id": "confirm-086",
+      "split": "confirmation",
+      "category": "mixed_sentence",
+      "expected": "mixed",
+      "hint": "fr",
+      "text": "The window is closed. La puerta permanece abierta."
+    },
+    {
+      "id": "confirm-087",
+      "split": "confirmation",
+      "category": "mixed_sentence",
+      "expected": "mixed",
+      "hint": "en",
+      "text": "The window is closed. La puerta permanece abierta."
+    },
+    {
+      "id": "confirm-088",
+      "split": "confirmation",
+      "category": "mixed_clause",
+      "expected": "mixed",
+      "hint": "fr",
+      "text": "Le capteur est disponible but its battery is almost empty."
+    },
+    {
+      "id": "confirm-089",
+      "split": "confirmation",
+      "category": "mixed_clause",
+      "expected": "mixed",
+      "hint": "en",
+      "text": "Le capteur est disponible but its battery is almost empty."
+    },
+    {
+      "id": "confirm-090",
+      "split": "confirmation",
+      "category": "mixed_clause",
+      "expected": "mixed",
+      "hint": "fr",
+      "text": "The curtain is open et la fenêtre reste fermée."
+    },
+    {
+      "id": "confirm-091",
+      "split": "confirmation",
+      "category": "mixed_clause",
+      "expected": "mixed",
+      "hint": "en",
+      "text": "The curtain is open et la fenêtre reste fermée."
+    },
+    {
+      "id": "confirm-092",
+      "split": "confirmation",
+      "category": "mixed_clause",
+      "expected": "mixed",
+      "hint": "fr",
+      "text": "Les lumières sont éteintes pero la puerta sigue abierta."
+    },
+    {
+      "id": "confirm-093",
+      "split": "confirmation",
+      "category": "mixed_clause",
+      "expected": "mixed",
+      "hint": "en",
+      "text": "Les lumières sont éteintes pero la puerta sigue abierta."
+    },
+    {
+      "id": "confirm-094",
+      "split": "confirmation",
+      "category": "mixed_clause",
+      "expected": "mixed",
+      "hint": "fr",
+      "text": "The heating is stopped mas a temperatura ainda sobe."
+    },
+    {
+      "id": "confirm-095",
+      "split": "confirmation",
+      "category": "mixed_clause",
+      "expected": "mixed",
+      "hint": "en",
+      "text": "The heating is stopped mas a temperatura ainda sobe."
+    },
+    {
+      "id": "confirm-096",
+      "split": "confirmation",
+      "category": "borrowed",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Le smartphone est connecté au Wi-Fi."
+    },
+    {
+      "id": "confirm-097",
+      "split": "confirmation",
+      "category": "borrowed",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Le smartphone est connecté au Wi-Fi."
+    },
+    {
+      "id": "confirm-098",
+      "split": "confirmation",
+      "category": "borrowed",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "La sonde utilise le protocole Bluetooth."
+    },
+    {
+      "id": "confirm-099",
+      "split": "confirmation",
+      "category": "borrowed",
+      "expected": "fr",
+      "hint": "en",
+      "text": "La sonde utilise le protocole Bluetooth."
+    },
+    {
+      "id": "confirm-100",
+      "split": "confirmation",
+      "category": "borrowed",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Le meeting est prévu demain matin."
+    },
+    {
+      "id": "confirm-101",
+      "split": "confirmation",
+      "category": "borrowed",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Le meeting est prévu demain matin."
+    },
+    {
+      "id": "confirm-102",
+      "split": "confirmation",
+      "category": "borrowed",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Le dossier backup est disponible en local."
+    },
+    {
+      "id": "confirm-103",
+      "split": "confirmation",
+      "category": "borrowed",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Le dossier backup est disponible en local."
+    },
+    {
+      "id": "confirm-104",
+      "split": "confirmation",
+      "category": "borrowed",
+      "expected": "en",
+      "hint": "fr",
+      "text": "The croissant is on the kitchen table."
+    },
+    {
+      "id": "confirm-105",
+      "split": "confirmation",
+      "category": "borrowed",
+      "expected": "en",
+      "hint": "en",
+      "text": "The croissant is on the kitchen table."
+    },
+    {
+      "id": "confirm-106",
+      "split": "confirmation",
+      "category": "borrowed",
+      "expected": "en",
+      "hint": "fr",
+      "text": "The façade sensor is currently disconnected."
+    },
+    {
+      "id": "confirm-107",
+      "split": "confirmation",
+      "category": "borrowed",
+      "expected": "en",
+      "hint": "en",
+      "text": "The façade sensor is currently disconnected."
+    },
+    {
+      "id": "confirm-108",
+      "split": "confirmation",
+      "category": "borrowed",
+      "expected": "en",
+      "hint": "fr",
+      "text": "The device called Lampe Noël has no battery."
+    },
+    {
+      "id": "confirm-109",
+      "split": "confirmation",
+      "category": "borrowed",
+      "expected": "en",
+      "hint": "en",
+      "text": "The device called Lampe Noël has no battery."
+    },
+    {
+      "id": "confirm-110",
+      "split": "confirmation",
+      "category": "borrowed",
+      "expected": "en",
+      "hint": "fr",
+      "text": "The French word merci expresses thanks."
+    },
+    {
+      "id": "confirm-111",
+      "split": "confirmation",
+      "category": "borrowed",
+      "expected": "en",
+      "hint": "en",
+      "text": "The French word merci expresses thanks."
+    },
+    {
+      "id": "fresh-000",
+      "split": "fresh",
+      "category": "short",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Très bien."
+    },
+    {
+      "id": "fresh-001",
+      "split": "fresh",
+      "category": "short",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Très bien."
+    },
+    {
+      "id": "fresh-002",
+      "split": "fresh",
+      "category": "short",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Je vais regarder."
+    },
+    {
+      "id": "fresh-003",
+      "split": "fresh",
+      "category": "short",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Je vais regarder."
+    },
+    {
+      "id": "fresh-004",
+      "split": "fresh",
+      "category": "short",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Cela semble correct."
+    },
+    {
+      "id": "fresh-005",
+      "split": "fresh",
+      "category": "short",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Cela semble correct."
+    },
+    {
+      "id": "fresh-006",
+      "split": "fresh",
+      "category": "short",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "C’est possible."
+    },
+    {
+      "id": "fresh-007",
+      "split": "fresh",
+      "category": "short",
+      "expected": "fr",
+      "hint": "en",
+      "text": "C’est possible."
+    },
+    {
+      "id": "fresh-008",
+      "split": "fresh",
+      "category": "short",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Désolé pour cette erreur."
+    },
+    {
+      "id": "fresh-009",
+      "split": "fresh",
+      "category": "short",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Désolé pour cette erreur."
+    },
+    {
+      "id": "fresh-010",
+      "split": "fresh",
+      "category": "short",
+      "expected": "en",
+      "hint": "fr",
+      "text": "Sounds good."
+    },
+    {
+      "id": "fresh-011",
+      "split": "fresh",
+      "category": "short",
+      "expected": "en",
+      "hint": "en",
+      "text": "Sounds good."
+    },
+    {
+      "id": "fresh-012",
+      "split": "fresh",
+      "category": "short",
+      "expected": "en",
+      "hint": "fr",
+      "text": "Let me check."
+    },
+    {
+      "id": "fresh-013",
+      "split": "fresh",
+      "category": "short",
+      "expected": "en",
+      "hint": "en",
+      "text": "Let me check."
+    },
+    {
+      "id": "fresh-014",
+      "split": "fresh",
+      "category": "short",
+      "expected": "en",
+      "hint": "fr",
+      "text": "That looks correct."
+    },
+    {
+      "id": "fresh-015",
+      "split": "fresh",
+      "category": "short",
+      "expected": "en",
+      "hint": "en",
+      "text": "That looks correct."
+    },
+    {
+      "id": "fresh-016",
+      "split": "fresh",
+      "category": "short",
+      "expected": "en",
+      "hint": "fr",
+      "text": "It is possible."
+    },
+    {
+      "id": "fresh-017",
+      "split": "fresh",
+      "category": "short",
+      "expected": "en",
+      "hint": "en",
+      "text": "It is possible."
+    },
+    {
+      "id": "fresh-018",
+      "split": "fresh",
+      "category": "short",
+      "expected": "en",
+      "hint": "fr",
+      "text": "Sorry about that mistake."
+    },
+    {
+      "id": "fresh-019",
+      "split": "fresh",
+      "category": "short",
+      "expected": "en",
+      "hint": "en",
+      "text": "Sorry about that mistake."
+    },
+    {
+      "id": "fresh-020",
+      "split": "fresh",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "fr",
+      "text": "12:05"
+    },
+    {
+      "id": "fresh-021",
+      "split": "fresh",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "en",
+      "text": "12:05"
+    },
+    {
+      "id": "fresh-022",
+      "split": "fresh",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "fr",
+      "text": "68 %"
+    },
+    {
+      "id": "fresh-023",
+      "split": "fresh",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "en",
+      "text": "68 %"
+    },
+    {
+      "id": "fresh-024",
+      "split": "fresh",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "fr",
+      "text": "Z9-04"
+    },
+    {
+      "id": "fresh-025",
+      "split": "fresh",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "en",
+      "text": "Z9-04"
+    },
+    {
+      "id": "fresh-026",
+      "split": "fresh",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "fr",
+      "text": "Alex"
+    },
+    {
+      "id": "fresh-027",
+      "split": "fresh",
+      "category": "neutral",
+      "expected": "neutral",
+      "hint": "en",
+      "text": "Alex"
+    },
+    {
+      "id": "fresh-028",
+      "split": "fresh",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Le détecteur de mouvement ne répond plus."
+    },
+    {
+      "id": "fresh-029",
+      "split": "fresh",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Le détecteur de mouvement ne répond plus."
+    },
+    {
+      "id": "fresh-030",
+      "split": "fresh",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "La prise du bureau consomme douze watts."
+    },
+    {
+      "id": "fresh-031",
+      "split": "fresh",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "en",
+      "text": "La prise du bureau consomme douze watts."
+    },
+    {
+      "id": "fresh-032",
+      "split": "fresh",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Je n’ai trouvé aucun volet dans cette zone."
+    },
+    {
+      "id": "fresh-033",
+      "split": "fresh",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Je n’ai trouvé aucun volet dans cette zone."
+    },
+    {
+      "id": "fresh-034",
+      "split": "fresh",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Le volume du salon est réglé à trente pour cent."
+    },
+    {
+      "id": "fresh-035",
+      "split": "fresh",
+      "category": "normal",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Le volume du salon est réglé à trente pour cent."
+    },
+    {
+      "id": "fresh-036",
+      "split": "fresh",
+      "category": "normal",
+      "expected": "en",
+      "hint": "fr",
+      "text": "The motion sensor is no longer responding."
+    },
+    {
+      "id": "fresh-037",
+      "split": "fresh",
+      "category": "normal",
+      "expected": "en",
+      "hint": "en",
+      "text": "The motion sensor is no longer responding."
+    },
+    {
+      "id": "fresh-038",
+      "split": "fresh",
+      "category": "normal",
+      "expected": "en",
+      "hint": "fr",
+      "text": "The office socket is consuming twelve watts."
+    },
+    {
+      "id": "fresh-039",
+      "split": "fresh",
+      "category": "normal",
+      "expected": "en",
+      "hint": "en",
+      "text": "The office socket is consuming twelve watts."
+    },
+    {
+      "id": "fresh-040",
+      "split": "fresh",
+      "category": "normal",
+      "expected": "en",
+      "hint": "fr",
+      "text": "I found no blind in that area."
+    },
+    {
+      "id": "fresh-041",
+      "split": "fresh",
+      "category": "normal",
+      "expected": "en",
+      "hint": "en",
+      "text": "I found no blind in that area."
+    },
+    {
+      "id": "fresh-042",
+      "split": "fresh",
+      "category": "normal",
+      "expected": "en",
+      "hint": "fr",
+      "text": "The living room volume is set to thirty percent."
+    },
+    {
+      "id": "fresh-043",
+      "split": "fresh",
+      "category": "normal",
+      "expected": "en",
+      "hint": "en",
+      "text": "The living room volume is set to thirty percent."
+    },
+    {
+      "id": "fresh-044",
+      "split": "fresh",
+      "category": "mixed_sentence",
+      "expected": "mixed",
+      "hint": "fr",
+      "text": "Le ventilateur est arrêté. The humidity remains high."
+    },
+    {
+      "id": "fresh-045",
+      "split": "fresh",
+      "category": "mixed_sentence",
+      "expected": "mixed",
+      "hint": "en",
+      "text": "Le ventilateur est arrêté. The humidity remains high."
+    },
+    {
+      "id": "fresh-046",
+      "split": "fresh",
+      "category": "mixed_sentence",
+      "expected": "mixed",
+      "hint": "fr",
+      "text": "The alarm is disabled. La porte du balcon est fermée."
+    },
+    {
+      "id": "fresh-047",
+      "split": "fresh",
+      "category": "mixed_sentence",
+      "expected": "mixed",
+      "hint": "en",
+      "text": "The alarm is disabled. La porte du balcon est fermée."
+    },
+    {
+      "id": "fresh-048",
+      "split": "fresh",
+      "category": "mixed_sentence",
+      "expected": "mixed",
+      "hint": "fr",
+      "text": "La prise est hors ligne. O sistema não recebeu uma resposta."
+    },
+    {
+      "id": "fresh-049",
+      "split": "fresh",
+      "category": "mixed_sentence",
+      "expected": "mixed",
+      "hint": "en",
+      "text": "La prise est hors ligne. O sistema não recebeu uma resposta."
+    },
+    {
+      "id": "fresh-050",
+      "split": "fresh",
+      "category": "mixed_clause",
+      "expected": "mixed",
+      "hint": "fr",
+      "text": "Le bureau est silencieux but the fan is still running."
+    },
+    {
+      "id": "fresh-051",
+      "split": "fresh",
+      "category": "mixed_clause",
+      "expected": "mixed",
+      "hint": "en",
+      "text": "Le bureau est silencieux but the fan is still running."
+    },
+    {
+      "id": "fresh-052",
+      "split": "fresh",
+      "category": "mixed_clause",
+      "expected": "mixed",
+      "hint": "fr",
+      "text": "The door is locked et la lumière reste allumée."
+    },
+    {
+      "id": "fresh-053",
+      "split": "fresh",
+      "category": "mixed_clause",
+      "expected": "mixed",
+      "hint": "en",
+      "text": "The door is locked et la lumière reste allumée."
+    },
+    {
+      "id": "fresh-054",
+      "split": "fresh",
+      "category": "mixed_clause",
+      "expected": "mixed",
+      "hint": "fr",
+      "text": "La consommation est faible pero el aparato sigue encendido."
+    },
+    {
+      "id": "fresh-055",
+      "split": "fresh",
+      "category": "mixed_clause",
+      "expected": "mixed",
+      "hint": "en",
+      "text": "La consommation est faible pero el aparato sigue encendido."
+    },
+    {
+      "id": "fresh-056",
+      "split": "fresh",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "fr",
+      "text": "O ventilador continua ligado."
+    },
+    {
+      "id": "fresh-057",
+      "split": "fresh",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "en",
+      "text": "O ventilador continua ligado."
+    },
+    {
+      "id": "fresh-058",
+      "split": "fresh",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "fr",
+      "text": "El ventilador sigue encendido."
+    },
+    {
+      "id": "fresh-059",
+      "split": "fresh",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "en",
+      "text": "El ventilador sigue encendido."
+    },
+    {
+      "id": "fresh-060",
+      "split": "fresh",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "fr",
+      "text": "De ventilator staat nog aan."
+    },
+    {
+      "id": "fresh-061",
+      "split": "fresh",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "en",
+      "text": "De ventilator staat nog aan."
+    },
+    {
+      "id": "fresh-062",
+      "split": "fresh",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "fr",
+      "text": "La ventola è ancora accesa."
+    },
+    {
+      "id": "fresh-063",
+      "split": "fresh",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "en",
+      "text": "La ventola è ancora accesa."
+    },
+    {
+      "id": "fresh-064",
+      "split": "fresh",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "fr",
+      "text": "Fläkten är fortfarande på."
+    },
+    {
+      "id": "fresh-065",
+      "split": "fresh",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "en",
+      "text": "Fläkten är fortfarande på."
+    },
+    {
+      "id": "fresh-066",
+      "split": "fresh",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "fr",
+      "text": "风扇仍在运行。"
+    },
+    {
+      "id": "fresh-067",
+      "split": "fresh",
+      "category": "foreign",
+      "expected": "unsupported",
+      "hint": "en",
+      "text": "风扇仍在运行。"
+    },
+    {
+      "id": "fresh-068",
+      "split": "fresh",
+      "category": "borrowed",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Le routeur utilise le firmware installé hier."
+    },
+    {
+      "id": "fresh-069",
+      "split": "fresh",
+      "category": "borrowed",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Le routeur utilise le firmware installé hier."
+    },
+    {
+      "id": "fresh-070",
+      "split": "fresh",
+      "category": "borrowed",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Le streaming audio est suspendu pour cinq minutes."
+    },
+    {
+      "id": "fresh-071",
+      "split": "fresh",
+      "category": "borrowed",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Le streaming audio est suspendu pour cinq minutes."
+    },
+    {
+      "id": "fresh-072",
+      "split": "fresh",
+      "category": "borrowed",
+      "expected": "fr",
+      "hint": "fr",
+      "text": "Le bouton play est visible sur le panneau."
+    },
+    {
+      "id": "fresh-073",
+      "split": "fresh",
+      "category": "borrowed",
+      "expected": "fr",
+      "hint": "en",
+      "text": "Le bouton play est visible sur le panneau."
+    },
+    {
+      "id": "fresh-074",
+      "split": "fresh",
+      "category": "borrowed",
+      "expected": "en",
+      "hint": "fr",
+      "text": "The soufflé is ready in the oven."
+    },
+    {
+      "id": "fresh-075",
+      "split": "fresh",
+      "category": "borrowed",
+      "expected": "en",
+      "hint": "en",
+      "text": "The soufflé is ready in the oven."
+    },
+    {
+      "id": "fresh-076",
+      "split": "fresh",
+      "category": "borrowed",
+      "expected": "en",
+      "hint": "fr",
+      "text": "The sensor near the château is unavailable."
+    },
+    {
+      "id": "fresh-077",
+      "split": "fresh",
+      "category": "borrowed",
+      "expected": "en",
+      "hint": "en",
+      "text": "The sensor near the château is unavailable."
+    },
+    {
+      "id": "fresh-078",
+      "split": "fresh",
+      "category": "borrowed",
+      "expected": "en",
+      "hint": "fr",
+      "text": "The word salut can mean hello in French."
+    },
+    {
+      "id": "fresh-079",
+      "split": "fresh",
+      "category": "borrowed",
+      "expected": "en",
+      "hint": "en",
+      "text": "The word salut can mean hello in French."
+    }
+  ]
+}

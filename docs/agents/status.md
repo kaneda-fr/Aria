@@ -1,5 +1,7 @@
 # Current evidence, gaps, and history
 
+[Language comparison](language-context-evaluation-2026-10-19.md): false fallbacks still block adoption.
+
 **Latest audio instruction — 2026-10-18:** the maintainer enabled Mac **playback only**
 and ESP32 input. Mac capture remains OFF. The playback-only listener attached to the
 current run and its readiness WAV completed successfully; LAN ingress was restored.
