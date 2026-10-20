@@ -236,3 +236,15 @@ remains open and the low-level administrative action API is outside this request
 Final source run `20261017T231411Z-control-final-8894d5`: 42 turns, 8/8 exact and truthful
 controls, eight challenge cases passed, median control audio-ready 0.70 s. Six utility/
 factual failures remain; 22 loopback destinations and no external/DNS attempts.
+
+## 2026-10-20 — PR #4 read-language review correction
+
+Reviewed runtime (`app/main.py`), plugins (`inventory/read_requests.py`) and
+regression tests. Both deterministic read paths now share explicit request-syntax
+language cues so accented equipment names do not select the reply voice. Six FR/EN
+cases cover exact IDs, reply/TTS language and history; the safe suite passes 625
+tests. Durable behavior, the operator socket contract and latest coverage limits
+are updated in [delivery evidence](read-prefill-delivery-2026-10-20.md) and
+[environment configuration](../ENVIRONMENT.md); no objective/architecture decision
+changed. This mapped review entry also covers incremental-push context validation,
+which does not recognize updates to the dedicated delivery report alone.
