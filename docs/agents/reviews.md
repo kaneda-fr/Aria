@@ -238,4 +238,4 @@ controls, eight challenge cases passed, median control audio-ready 0.70 s. Six u
 factual failures remain; 22 loopback destinations and no external/DNS attempts.
 
 
-Read-language fix (2026-10-20): 625 tests pass; [context and evidence](read-prefill-delivery-2026-10-20.md).
+Read guards: [speaker scope, timeout quarantine and validation](read-prefill-delivery-2026-10-20.md).

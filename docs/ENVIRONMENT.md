@@ -411,3 +411,9 @@ provide deliberately scoped local access. Start it before the adapter; stop the
 adapter before the bridge. Runtime calls stay on owned LAN/Unix sockets; the
 bridge does not provide forecast inference, a cloud fallback or action execution.
 Tests must use a synthetic read fixture and captured output, not this live broker.
+
+After a read times out, the bridge quarantines that command for its process lifetime
+until the outstanding non-retained response arrives and is discarded. Repeated
+requests return unavailable without republishing; there is no timer-based retry.
+Other command IDs remain usable. The MQTT value protocol has no request nonce;
+measurement time stays unknown and restarting is not a freshness guarantee.

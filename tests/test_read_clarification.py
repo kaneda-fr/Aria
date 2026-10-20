@@ -89,7 +89,7 @@ async def test_clarification_resumes_read_even_if_model_would_omit_tools(server,
     model = AsyncMock(return_value={'content': 'No device matches.', 'tool_calls': []})
     monkeypatch.setattr(runtime, 'generate_llm_response', model)
     response = (await c.post('/api/llm/process', json={
-        'text': followup, 'session_id': 'choice', 'speak_response': False})).raise_for_status().json()
+        'text': followup, 'session_id': 'choice', 'speaker_user': 'person', 'speak_response': False})).raise_for_status().json()
     assert response['success'] and 'Lampe Atelier' in response['response']
     assert reads == [['101', '102']]
     assert response['tool_calls_made'] == 1
@@ -107,7 +107,7 @@ async def test_source_choice_keeps_the_requested_metric_instead_of_reading_every
     monkeypatch.setenv('ARIA_LLM_HISTORY_MAX_MESSAGES', '6')
     state.plugin_registry = SimpleNamespace(get_plugins_by_type=lambda _: [provider], get_plugin=lambda _: None)
     state.llm_history['metric-choice'] = deque([
-        {'role': 'user', 'content': 'Quelle température indiquent les capteurs ?'},
+        {'role': 'user', 'content': '[speaker=unknown] Quelle température indiquent les capteurs ?'},
         {'role': 'assistant', 'content': render_state({'status': 'ambiguous', 'devices': ['Capteur Nord', 'Capteur Sud']}, 'fr')}], maxlen=6)
     monkeypatch.setattr(runtime, 'generate_llm_response', AsyncMock(return_value={'content': 'Not found', 'tool_calls': []}))
     result = (await c.post('/api/llm/process', json={'text': followup, 'session_id': 'metric-choice', 'speak_response': False})).json()
@@ -139,7 +139,7 @@ async def test_followup_does_not_guess_a_source_for_unrelated_or_action_requests
     monkeypatch.setenv('ARIA_LLM_HISTORY_MAX_MESSAGES', '6')
     state.plugin_registry = SimpleNamespace(get_plugins_by_type=lambda _: [provider], get_plugin=lambda _: None)
     state.llm_history['choice'] = deque([
-        {'role': 'user', 'content': 'Read the state in Atelier.'},
+        {'role': 'user', 'content': '[speaker=unknown] Read the state in Atelier.'},
         {'role': 'assistant', 'content': render_state({'status': 'ambiguous', 'devices': ['Lampe Atelier', 'Switch Atelier']})}], maxlen=6)
     monkeypatch.setattr(runtime, 'generate_llm_response', AsyncMock(return_value={'content': 'A general reply.', 'tool_calls': []}))
     await c.post('/api/llm/process', json={'text': text, 'session_id': 'choice', 'speak_response': False})
@@ -154,7 +154,7 @@ async def test_different_session_cannot_resume_another_clients_read(server, read
     monkeypatch.setenv('ARIA_LLM_HISTORY_MAX_MESSAGES', '6')
     state.plugin_registry = SimpleNamespace(get_plugins_by_type=lambda _: [provider], get_plugin=lambda _: None)
     state.llm_history['other-client'] = deque([
-        {'role': 'user', 'content': 'Read the state in Atelier.'},
+        {'role': 'user', 'content': '[speaker=unknown] Read the state in Atelier.'},
         {'role': 'assistant', 'content': 'Which source do you mean: Lampe Atelier, Switch Atelier ?'}], maxlen=6)
     monkeypatch.setattr(runtime, 'generate_llm_response', AsyncMock(return_value={'content': 'Which lamp?', 'tool_calls': []}))
     await c.post('/api/llm/process', json={'text': 'The first source.', 'session_id': 'new-client', 'speak_response': False})
@@ -202,7 +202,7 @@ async def test_clarification_keeps_the_channel_and_an_explicit_new_channel_can_o
     monkeypatch.setattr(runtime, 'generate_llm_response', AsyncMock(return_value={'content': 'Not found', 'tool_calls': []}))
     for followup, want in [('Lampe Atelier.', ['102']), ('Lampe Atelier canal 1.', ['101'])]:
         state.llm_history['channel-choice'] = deque([
-            {'role': 'user', 'content': 'Quel est l’état dans Atelier canal 2 ?'},
+            {'role': 'user', 'content': '[speaker=unknown] Quel est l’état dans Atelier canal 2 ?'},
             {'role': 'assistant', 'content': render_state({'status': 'ambiguous', 'devices': ['Lampe Atelier', 'Switch Atelier']}, 'fr')}], maxlen=6)
         response = (await c.post('/api/llm/process', json={'text': followup, 'session_id': 'channel-choice', 'speak_response': False})).json()
         assert response['success']
@@ -231,7 +231,7 @@ async def test_ordinary_model_question_is_not_a_trusted_read_clarification(serve
     monkeypatch.setenv('ARIA_LLM_HISTORY_MAX_MESSAGES', '6')
     state.plugin_registry = SimpleNamespace(get_plugins_by_type=lambda _: [provider], get_plugin=lambda _: None)
     state.llm_history['not-a-choice'] = deque([
-        {'role': 'user', 'content': 'Tell me a story.'},
+        {'role': 'user', 'content': '[speaker=unknown] Tell me a story.'},
         {'role': 'assistant', 'content': 'Should the story mention Lampe Atelier or Switch Atelier?'}], maxlen=6)
     model = AsyncMock(return_value={'content': 'A story about a lamp.', 'tool_calls': []})
     monkeypatch.setattr(runtime, 'generate_llm_response', model)
@@ -278,7 +278,7 @@ async def test_network_switch_name_resumes_shared_read_without_a_model_action_gu
     monkeypatch.setenv('ARIA_LLM_HISTORY_MAX_MESSAGES', '6')
     state.plugin_registry = SimpleNamespace(get_plugins_by_type=lambda _: [provider], get_plugin=lambda _: None)
     state.llm_history['network-choice'] = deque([
-        {'role': 'user', 'content': 'Read the state in Atelier.'},
+        {'role': 'user', 'content': '[speaker=unknown] Read the state in Atelier.'},
         {'role': 'assistant', 'content': render_state({'status': 'ambiguous', 'devices': ['Lampe Atelier', 'Switch Atelier']})}], maxlen=6)
     model = AsyncMock(return_value={'content': 'A device changed.', 'tool_calls': []})
     monkeypatch.setattr(runtime, 'generate_llm_response', model)

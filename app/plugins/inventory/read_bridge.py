@@ -28,6 +28,7 @@ class JeedomReadBridge:
         self.lock = threading.RLock()
         self.read_lock = threading.Lock()
         self.pending = {}
+        self.quarantined = set()
         self.live_discovery_count = self.event_count = self.read_count = 0
         self.last_discovery_at = None
         self.generation = time.time_ns()
@@ -88,6 +89,11 @@ class JeedomReadBridge:
                 if not topic.startswith(f'{self.root}/cmd/value/') or retained:
                     return
                 cmd_id = topic.rsplit('/', 1)[-1]
+                if cmd_id in self.quarantined:
+                    # The protocol has no nonce: drain the outstanding response
+                    # before permitting another get for this command.
+                    self.quarantined.discard(cmd_id)
+                    return
                 pending = self.pending.get(cmd_id)
                 if not pending:
                     return
@@ -152,9 +158,12 @@ class JeedomReadBridge:
                     if not cmd or cmd.type != 'info' or not device or not device.enabled:
                         return {'success': False, 'status': 'invalid_read'}
                     commands.append((cmd, device))
+                if any(cmd.cmd_id in self.quarantined for cmd, _ in commands):
+                    return {'success': False, 'status': 'awaiting_previous_response'}
                 self.pending = {cmd.cmd_id: {'event': threading.Event()} for cmd, _ in commands}
                 for cmd, _ in commands:
                     # This is the only application publish in this service.
+                    self.pending[cmd.cmd_id]['sent'] = True
                     self.client.publish(f'{self.root}/cmd/get/{cmd.cmd_id}', '', qos=1, retain=False)
                     self.read_count += 1
             deadline = time.monotonic() + min(max(timeout, .01), 2)
@@ -176,6 +185,9 @@ class JeedomReadBridge:
                         'status': 'read', 'readings': readings}
         finally:
             with self.lock:
+                # No time-based retry can prove an old reply has left the wire.
+                self.quarantined.update(cmd_id for cmd_id, pending in self.pending.items()
+                                        if pending.get('sent') and 'value' not in pending)
                 self.pending = {}
             self.read_lock.release()
 

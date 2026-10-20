@@ -629,7 +629,14 @@ async def _process_request(app: FastAPI, job: AssistantRequest) -> dict[str, Any
 
         user_content = f"[speaker={speaker_user}] {text}"
         messages.append({"role": "user", "content": user_content})
-        read_history = list(messages[1:-1])
+        # Clarification authority is speaker-scoped; model history stays intact.
+        read_history = []
+        for i in range(len(messages) - 2, 1, -2):
+            prior_user, prior_reply = messages[i - 1:i + 1]
+            if (prior_user.get('role') != 'user' or prior_reply.get('role') != 'assistant'
+                    or not prior_user.get('content', '').startswith(f'[speaker={speaker_user}] ')):
+                break
+            read_history[0:0] = [prior_user, prior_reply]
 
         # Tool calling loop
         tool_calls_made = 0

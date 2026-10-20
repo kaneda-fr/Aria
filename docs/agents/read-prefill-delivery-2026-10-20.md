@@ -93,3 +93,14 @@ successful live state reads. No paired baseline for those utterances exists, so
 this establishes coverage gaps, not regression attribution. These broader changes
 remain separate rather than being silently folded into this review correction.
 The maintainer has stopped the backend, bridge and Mac audio; nothing was restarted.
+
+Second review corrections bind source-choice history to the contiguous preceding
+turns of the current speaker. The full model/conversation history is unchanged;
+this is reference scoping, not speaker authentication. MQTT timeouts quarantine
+the affected command: no later get is published until its outstanding non-retained
+response is received and discarded. Retained values cannot clear quarantine; other
+commands remain usable. The protocol has no request nonce, so a timer cannot prove
+that an old response has left the wire. Quarantine lasts for the bridge process
+and may remain indefinitely when no late response arrives. This protects repeated
+reads after timeout; it does not establish sensor measurement time or arbitrary
+transport-duplicate/restart correlation. Healthy reads add no wait or model work.
