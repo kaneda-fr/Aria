@@ -216,3 +216,5 @@ The monitor's Clear offline control hides disconnected registry rows until their
 next claim. Mute deadlines, session keys, pending requests and logs are preserved;
 it does not disconnect clients or clear conversation history. The layout prioritizes
 the live log viewport, with compact status/metrics and expandable help.
+
+[Read/clarification and cache paths](read-prefill-delivery-2026-10-20.md).

@@ -351,8 +351,8 @@ async def test_new_request_cancels_prefill_and_history_remains_exact(server, mon
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('text,language', [
-    ('What can the reading lamp do?', 'en'),
-    ('Quelles fonctions propose la lampe de lecture ?', 'fr'),
+    ('Find the reading lamp.', 'en'),
+    ('Cherche la lampe de lecture.', 'fr'),
 ])
 async def test_lookup_uses_one_model_round_and_shared_history(server, monkeypatch, text, language):
     client, state = server
@@ -377,6 +377,37 @@ async def test_lookup_uses_one_model_round_and_shared_history(server, monkeypatc
     assert ('État actuel inconnu' if language == 'fr' else 'Current state unknown') in reply
     assert state.llm_history['lookup-http'][-1]['content'] == reply
     assert state.llm_history['lookup-voice'][-1]['content'] == reply
+    assert all(c.kwargs['language'] == language for c in state.speech_output.speak.await_args_list)
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('text,language', [
+    ('Quelle est la température de Meteo North ?', 'fr'),
+    ('What is the temperature from Meteo North?', 'en'),
+])
+async def test_state_read_uses_one_model_round_and_shared_history(server, monkeypatch, text, language):
+    client, state = server
+    monkeypatch.setenv('ARIA_LLM_HISTORY_MAX_MESSAGES', '6')
+    reading = {'success': True, 'status': 'read', 'readings': [{
+        'cmd_id': '11', 'device_name': 'Meteo North', 'status': 'ok',
+        'metric': 'temperature', 'value': 12.5, 'unit': '°C', 'observed_at': None}]}
+    reader = SimpleNamespace(name='inventory', is_started=True,
+                             read_state=AsyncMock(return_value=reading))
+    state.plugin_registry = SimpleNamespace(get_plugins_by_type=lambda _: [reader],
+                                            get_plugin=lambda _: object())
+    inference = AsyncMock(return_value={'content': 'Invented 99 degrees', 'tool_calls': [
+        {'function': {'name': 'get_device_state',
+                      'arguments': {'query': 'Meteo North', 'metric': 'temperature'}}}]})
+    monkeypatch.setattr(runtime, 'generate_llm_response', inference)
+    response = await client.post('/api/llm/process', json={
+        'text': text, 'session_id': 'read-http', 'speak_response': True})
+    voice = runtime._enqueue_final_llm(runtime.app, text, 'read-voice', 'unknown')
+    spoken = await asyncio.wait_for(voice.result, 2)
+    reply = response.json()['response']
+    assert response.status_code == 200 and spoken['response'] == reply
+    assert inference.await_count == 2
+    assert '12.5' in reply and '99' not in reply
+    assert state.llm_history['read-http'][-1]['content'] == reply
+    assert state.llm_history['read-voice'][-1]['content'] == reply
     assert all(c.kwargs['language'] == language for c in state.speech_output.speak.await_args_list)
 
 

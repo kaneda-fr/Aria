@@ -545,13 +545,16 @@ async def process_text(request: dict[str, Any]) -> dict[str, Any]:
 async def _process_request(app: FastAPI, job: AssistantRequest) -> dict[str, Any]:
     """The single conversation/tool/history/speech path for both transports."""
     from app.llm.control import ControlMemory, Plan, resolve, render
-    from app.llm.local_answers import clock_answer, capability_answer
+    from app.llm.local_answers import LocalAnswer, clock_answer, capability_answer
     from app.llm.lookup_reply import render_lookup_results
+    from app.plugins.inventory.read_requests import resolve_read_request, answer_read_request
     from app.llm.history_prefill import cancel_prefill, schedule_prefill
 
     await cancel_prefill(app.state)
     from fastapi import HTTPException
-    from app.llm.tools import TOOLS, execute_tool, format_tool_result_for_llm
+    from app.llm.tools import available_tools, execute_tool, format_tool_result_for_llm
+    from app.plugins.inventory.state_read import render_state, measurement_request, resolved_read_request, READ_WORDS
+    from app.plugins.inventory.selection import location_needs_clarification
     from app.plugins.tooling_provider import ToolingProvider
 
     text = job.conversation_text if job.conversation_text is not None else job.text
@@ -592,9 +595,6 @@ async def _process_request(app: FastAPI, job: AssistantRequest) -> dict[str, Any
     llm_config = getattr(app.state, "llm_config", None)
     llm_client = getattr(app.state, "llm_client", None)
 
-    if not llm_config or not llm_client:
-        raise HTTPException(status_code=503, detail="LLM not enabled")
-
     # Get plugin providers for tools
     plugin_registry = getattr(app.state, "plugin_registry", None)
     inventory_provider = None
@@ -604,6 +604,11 @@ async def _process_request(app: FastAPI, job: AssistantRequest) -> dict[str, Any
         providers = plugin_registry.get_plugins_by_type(ToolingProvider)
         inventory_provider = next((p for p in providers if p.name == "inventory"), None)
         actions_provider = plugin_registry.get_plugin("actions")
+
+    refresh_inventory = getattr(inventory_provider, 'refresh_live_inventory', None)
+    if refresh_inventory is not None:
+        await refresh_inventory()
+    request_tools = available_tools(inventory_provider) if use_tools and inventory_provider is not None else None
 
     try:
         # Build messages with optional history
@@ -624,6 +629,7 @@ async def _process_request(app: FastAPI, job: AssistantRequest) -> dict[str, Any
 
         user_content = f"[speaker={speaker_user}] {text}"
         messages.append({"role": "user", "content": user_content})
+        read_history = list(messages[1:-1])
 
         # Tool calling loop
         tool_calls_made = 0
@@ -632,9 +638,38 @@ async def _process_request(app: FastAPI, job: AssistantRequest) -> dict[str, Any
         final_response = ""
         iteration = -1
         control_plan = None
+        read_plan = None
         action_result = None
         local_answer = clock_answer(text) or capability_answer(
             text, inventory_provider, actions_provider, tools_enabled=use_tools)
+        if (local_answer is None and use_tools and callable(getattr(inventory_provider, 'read_state', None))
+                and getattr(inventory_provider, 'indexer', None) is not None
+                and measurement_request(text)
+                and location_needs_clarification(inventory_provider.indexer.get_snapshot(), text, extra=READ_WORDS)):
+            local_answer = LocalAnswer(render_state({'status': 'ambiguous'}, language),
+                                       language, 'read_clarification')
+        if (local_answer is None and use_tools and callable(getattr(inventory_provider, 'read_state', None))
+                and getattr(inventory_provider, 'indexer', None) is not None):
+            read_args = resolved_read_request(inventory_provider.indexer.get_snapshot(), text, read_history)
+            if read_args is not None:
+                read_result = await execute_tool(
+                    tool_name='get_device_state',
+                    tool_args={**read_args, 'request_text': text, 'request_history': read_history},
+                    inventory_provider=inventory_provider, actions_provider=actions_provider)
+                tool_calls_made = 1
+                local_answer = LocalAnswer(render_state(read_result, language), language, 'read_clarification')
+                memory = getattr(app.state, 'control_memory', None)
+                if memory is None:
+                    memory = app.state.control_memory = ControlMemory()
+                snapshot = inventory_provider.indexer.get_snapshot()
+                selected = {d.eq_id for d in snapshot.devices.values()
+                            for c in d.commands
+                            if any(row.get('cmd_id') == c.cmd_id
+                                   for row in read_result.get('readings', []))}
+                if len(selected) == 1:
+                    memory.remember((session_id, speaker_user), next(iter(selected)))
+                else:
+                    memory.forget((session_id, speaker_user))
         if local_answer is not None:
             final_response, language = local_answer.text, local_answer.language
             log.info("ARIA.Local.Answer", extra={"fields": {
@@ -644,7 +679,25 @@ async def _process_request(app: FastAPI, job: AssistantRequest) -> dict[str, Any
             if memory is None:
                 memory = app.state.control_memory = ControlMemory()
             reference_key = (session_id, speaker_user)
-            control_plan = resolve(text, inventory_provider, memory.get(reference_key))
+            indexer = getattr(inventory_provider, 'indexer', None)
+            snapshot = (indexer.get_snapshot() if indexer is not None and
+                        getattr(inventory_provider, 'is_started', False) else None)
+            read_plan = resolve_read_request(text, snapshot, memory.get(reference_key))
+            if read_plan is not None:
+                language = read_plan.language or language
+                final_response, read_result = await answer_read_request(read_plan, inventory_provider, language)
+                tool_calls_made = int(read_plan.status == 'ready')
+                log.info('ARIA.Inventory.Lookup', extra={'fields': {
+                    'request_id': job.request_id, 'session_id': session_id,
+                    'kind': read_plan.kind, 'status': read_plan.status,
+                    'device_id': read_plan.device_id, 'metric': read_plan.metric,
+                    'match': read_plan.match, 'result': read_result, 'language': language, 'model_calls': 0}})
+                if read_plan.status == 'ready' and read_result.get('status') != 'not_found':
+                    memory.remember(reference_key, read_plan.device_id)
+                else:
+                    memory.forget(reference_key)
+            else:
+                control_plan = resolve(text, inventory_provider, memory.get(reference_key))
             if control_plan is not None:
                 language = control_plan.language
                 log.info("ARIA.Control.Resolved", extra={"fields": {
@@ -666,14 +719,17 @@ async def _process_request(app: FastAPI, job: AssistantRequest) -> dict[str, Any
                     memory.forget(reference_key)
                 final_response = render(control_plan, action_result)
 
-        for iteration in range(0 if control_plan is not None or local_answer is not None else max_iterations):
+        handled = control_plan is not None or local_answer is not None or read_plan is not None
+        if not handled and (not llm_config or not llm_client):
+            raise HTTPException(status_code=503, detail="LLM not enabled")
+        for iteration in range(0 if handled else max_iterations):
             # Generate LLM response with tools
             llm_result = await generate_llm_response(
                 text=text,
                 messages=messages,
                 config=llm_config,
                 client=llm_client,
-                tools=TOOLS if use_tools and inventory_provider is not None else None,
+                tools=request_tools,
             )
 
             app.state.llm_recent_session = session_id
@@ -695,7 +751,7 @@ async def _process_request(app: FastAPI, job: AssistantRequest) -> dict[str, Any
 
             # A read-only search batch is grounded evidence, not another generation task.
             lookup_results = []
-            lookup_only = all(call.get('function', {}).get('name') == 'find_devices'
+            lookup_only = all(call.get('function', {}).get('name') in ('find_devices', 'get_device_state')
                               for call in tool_calls)
             # Execute each tool call
             for tool_call in tool_calls:
@@ -717,6 +773,14 @@ async def _process_request(app: FastAPI, job: AssistantRequest) -> dict[str, Any
                 else:
                     tool_args = {}
 
+                if (tool_name == 'find_devices' and callable(getattr(inventory_provider, 'read_state', None))
+                        and measurement_request(text)):
+                    tool_name = 'get_device_state'
+                    log.info('ARIA.Control.ReadIntent', extra={'fields': {
+                        'request_id': job.request_id, 'original_tool': 'find_devices',
+                        'tool': tool_name}})
+                if tool_name in ('find_devices', 'get_device_state'):
+                    tool_args = {**tool_args, 'request_text': text, 'request_history': read_history}
                 # Execute tool
                 tool_result = await execute_tool(
                     tool_name=tool_name,
@@ -731,7 +795,7 @@ async def _process_request(app: FastAPI, job: AssistantRequest) -> dict[str, Any
                     break
 
                 if lookup_only:
-                    lookup_results.append(tool_result)
+                    lookup_results.append((tool_name, tool_result))
                     continue
 
                 # Format result for LLM
@@ -745,7 +809,11 @@ async def _process_request(app: FastAPI, job: AssistantRequest) -> dict[str, Any
                     "tool_name": tool_name,
                 })
             if lookup_only:
-                final_response = render_lookup_results(lookup_results, language=language)
+                searches = [result for name, result in lookup_results if name == 'find_devices']
+                readings = [result for name, result in lookup_results if name == 'get_device_state']
+                parts = ([render_lookup_results(searches, language=language)] if searches else [])
+                parts.extend(render_state(result, language) for result in readings)
+                final_response = ' '.join(parts)
                 log.info('ARIA.Lookup.Reply', extra={'fields': {
                     'request_id': job.request_id, 'searches': len(lookup_results),
                     'language': language, 'model_round_trip_saved': True}})
@@ -797,6 +865,7 @@ async def _process_request(app: FastAPI, job: AssistantRequest) -> dict[str, Any
         )
 
         prefill_messages = None
+        history_evicted = False
         # Update history if session_id provided
         if history_max > 0 and session_id:
             history_lock = getattr(app.state, "llm_history_lock", None)
@@ -807,17 +876,19 @@ async def _process_request(app: FastAPI, job: AssistantRequest) -> dict[str, Any
                     if history is None or getattr(history, "maxlen", None) != history_max:
                         history = deque(list(history or []), maxlen=history_max)
                         history_map[session_id] = history
+                    history_evicted = len(history) + 2 > history_max
                     history.append({"role": "user", "content": user_content})
                     history.append({"role": "assistant", "content": final_response})
                     prefill_messages = [{"role": "system", "content": SYSTEM_PROMPT}, *list(history)]
 
         # Optional TTS
         spoken = await _speak_reply(app, final_response, language) if speak_response else False
-        if local_answer is not None and spoken and prefill_messages is not None:
+        read_cache = (read_plan is not None or (local_answer is not None and local_answer.kind == 'read_clarification')) and llm_config is not None and llm_client is not None
+        if (read_cache or (read_plan is None and (local_answer is not None or history_evicted))) and spoken and prefill_messages is not None:
             schedule_prefill(app.state, session_id=session_id, messages=prefill_messages,
-                             tools=TOOLS if use_tools and inventory_provider is not None else None,
+                             tools=request_tools,
                              audio_ready=getattr(app.state.speech_output, "audio_ready", None),
-                             request_id=job.request_id)
+                             request_id=job.request_id, rollover=history_evicted, server_read=read_cache)
 
         return {
             "success": True,
@@ -827,6 +898,7 @@ async def _process_request(app: FastAPI, job: AssistantRequest) -> dict[str, Any
             "spoken": spoken,
             "tool_calls_made": tool_calls_made,
             "control_status": control_plan.status if control_plan else None,
+            "lookup_status": read_plan.status if read_plan else None,
             "action_outcome": action_result.get("outcome") if action_result else None,
         }
 

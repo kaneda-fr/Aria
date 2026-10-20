@@ -171,3 +171,5 @@ terminate the listener or block later replies.
 
 `test_mac_player_heartbeat.py` covers lease renewal during delayed state/WAV reads,
 renewal failure during WAV reads or start acknowledgments, and task cleanup on exit.
+
+For read/clarification/cache changes, follow the [delivery validation guide](read-prefill-delivery-2026-10-20.md). Include lexical collisions, explicit rooms/types/channels, offered-source choices, identity refresh, missing readings, no-LLM operation, exact history, cancellation and immediate multi-client requests.
