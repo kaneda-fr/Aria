@@ -54,3 +54,6 @@ packages = [
 
 [tool.uvicorn]
 factory = false
+
+[tool.setuptools.package-data]
+"app.plugins.inventory" = ["entity_lexicon*.json", "licenses/*"]

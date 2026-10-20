@@ -83,6 +83,11 @@ async def execute_tool(
     try:
         if tool_name == "find_devices":
             return await _find_devices(tool_args, inventory_provider, log)
+        elif tool_name == "get_device_state":
+            reader = getattr(inventory_provider, "read_state", None)
+            if not reader or not inventory_provider.is_started:
+                return {"success": False, "status": "unavailable"}
+            return await reader(tool_args)
         elif tool_name == "execute_command":
             return await _execute_command(tool_args, inventory_provider, actions_provider, log, authorization)
         else:
@@ -102,6 +107,50 @@ async def execute_tool(
             "success": False
         }
 
+def available_tools(inventory=None):
+    """Keep the original schema when a read connection is not configured."""
+    if callable(getattr(inventory, 'read_state', None)) and getattr(inventory, 'is_started', False):
+        return TOOLS + [{
+            "type": "function",
+            "function": {
+                "name": "get_device_state",
+                "description": "Read current device state, sensors or weather from local Jeedom. Use for weather, temperature, humidity, power, or whether a light is on. Read-only: never changes devices. Specify the device/source/location in query; omit location for source clarification.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "Device name or location, or weather/meteo. Preserve the requested name."},
+                        "metric": {"type": "string", "description": "Optional temperature, humidity, pressure, wind, rain, power, energy, condition or state."},
+                        "room": {"type": "string", "description": "Optional exact inventory room."}
+                    },
+                    "required": ["query"]
+                }
+            }
+        }]
+    return TOOLS
+
+
+def catalog_query(text, snapshot):
+    """Remove catalog-request grammar while retaining native names and locations."""
+    import re
+    from app.plugins.inventory.selection import normalize, contains
+    key = normalize(text)
+    names = {normalize(d.name) for d in snapshot.devices.values() if d.enabled} if snapshot else set()
+    prefix = {'list', 'liste', 'listez', 'show', 'montre', 'montrez', 'find', 'cherche',
+              'cherchez', 'trouve', 'trouvez', 'what', 'which', 'quels', 'quelles',
+              'are', 'is', 'est', 'sont', 'available', 'disponibles', 'controls',
+              'commands', 'commandes', 'pour', 'for', 'the', 'les', 'des', 'me', 'please'}
+    words = key.split()
+    while words and words[0] in prefix and not any(
+            ' '.join(words) == name or ' '.join(words).startswith(name + ' ') for name in names):
+        words.pop(0)
+    key = ' '.join(words)
+    scope = r'\b(?:at home|in the house|a la maison|dans la maison|chez moi)\b'
+    # A device named "Home"/"Maison" must not capture generic household scope.
+    # Preserve full native labels that actually contain the scope phrase.
+    key = re.sub(scope, lambda match: match.group(0) if any(
+        contains(name, match.group(0)) and contains(key, name) for name in names)
+        else ' ', key)
+    return ' '.join(key.split())
 
 async def _find_devices(
     args: Dict[str, Any],
@@ -116,12 +165,31 @@ async def _find_devices(
             "candidates": []
         }
 
-    query = args.get("query", "")
+    from app.plugins.inventory.state_read import ground_read_source
+    original = str(args.get("request_text", ""))
+    query = str(args.get("query", ""))
+    snapshot = inventory_provider.indexer.get_snapshot() if getattr(inventory_provider, "indexer", None) else None
+    query = catalog_query(query, snapshot)
     room = args.get("room")
+    domain = None
+    if original and snapshot:
+        # Retain the model's interpretation of free-form grammar, but constrain it
+        # with names and locations explicitly supplied by the user.
+        request_context = catalog_query(original, snapshot)
+        grounded = ground_read_source(snapshot, request_context, request_context, room)
+        if grounded.get("status"):
+            return {"success": True, "candidates": [], "total_found": 0,
+                    "selection_status": grounded["status"]}
+        if grounded["query"] != request_context:
+            query = grounded["query"]
+        room = grounded.get("room")
+        domain = grounded.get("domain")
 
     context = {}
     if room:
         context["room"] = room
+    if domain:
+        context["domain"] = domain
 
     # Get candidates from inventory
     result = inventory_provider.get_candidates(text=query, context=context if context else None)

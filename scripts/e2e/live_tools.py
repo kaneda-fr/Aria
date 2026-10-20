@@ -46,8 +46,12 @@ def install_live_tools(app, run, log, request_id, source):
         raise RuntimeError('Unexpected providers already enabled')
     cache = run / 'inventory-snapshot.json'
     shutil.copyfile(source, cache)
-    registry.register_plugin_class('inventory', InventoryProvider)
-    inventory = registry.create_plugin('inventory', {'cache_path': str(cache), 'sources': {}})
+    import os
+    import json
+    from app.plugins.inventory.state_read import ReadOnlyInventory
+    read_socket = os.environ.get('ARIA_JEEDOM_READ_SOCKET')
+    registry.register_plugin_class('inventory', ReadOnlyInventory if read_socket else InventoryProvider)
+    inventory = registry.create_plugin('inventory', {'cache_path': str(cache), 'sources': {}, **({'read_socket': read_socket} if read_socket else {})})
     inventory.start()
     if not inventory.indexer.command_count:
         raise RuntimeError('Cached inventory has no commands')
@@ -56,5 +60,8 @@ def install_live_tools(app, run, log, request_id, source):
         'inventory': inventory, 'log': log, 'request_id': request_id})
     actions.start()
     log('Live.ToolsReady', mode='log_only', devices=inventory.indexer.device_count,
-        commands=inventory.indexer.command_count, inventory_source='cached_snapshot',
-        inventory_sha256=hashlib.sha256(cache.read_bytes()).hexdigest())
+        commands=inventory.indexer.command_count, inventory_source='live_read_bridge' if read_socket else 'cached_snapshot',
+        bridge=getattr(inventory, 'bridge_status', None),
+        inventory_seed_sha256=hashlib.sha256(cache.read_bytes()).hexdigest(),
+        inventory_sha256=hashlib.sha256(json.dumps(
+            inventory.get_snapshot()['devices'], sort_keys=True).encode()).hexdigest())
