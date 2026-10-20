@@ -1,0 +1,64 @@
+{
+  "collision_policy": "Keep existing declared aliases; omit new terms shared across chosen concepts.",
+  "concepts": {
+    "02738535-n": "fauteuil",
+    "02821627-n": "chambre",
+    "03112099-n": "couloir",
+    "03151077-n": "rideau",
+    "03200701-n": "salle manger",
+    "03619890-n": "cuisine",
+    "03679712-n": "salon",
+    "03841666-n": "bureau",
+    "04256520-n": "canape",
+    "04589190-n": "store"
+  },
+  "excluded": {
+    "couloir aerien": "aviation sense, not a household corridor",
+    "dortoir": "dormitory is not interchangeable with bedroom",
+    "galerie": "broader gallery meaning",
+    "manteau": "coat/mantle polysemy",
+    "mantle": "not a household curtain synonym",
+    "pall": "burial covering",
+    "piece": "generic room, not bedroom",
+    "salle": "generic room, not bedroom",
+    "slaapkamer": "Dutch token in French resource",
+    "sleeping accommodation": "broader category than bedroom",
+    "woonkamer": "Dutch token in French resource"
+  },
+  "schema": 1,
+  "sources": {
+    "commit": "406bf83b3c507a3d1f26e88252d5d66893fd36bf",
+    "sources": {
+      "eng-LICENSE": {
+        "bytes": 1934,
+        "sha256": "879422521551f1933cdb75a56c89da11ffce2c800c9431052d7b66207b5c2c68",
+        "url": "https://raw.githubusercontent.com/omwn/omw-data/406bf83b3c507a3d1f26e88252d5d66893fd36bf/wns/eng/LICENSE"
+      },
+      "eng-citation.bib": {
+        "bytes": 212,
+        "sha256": "cd931cfe73536463c1decce60005a55d6b0c605fc7c5f89aaff7a38b5aedfa79",
+        "url": "https://raw.githubusercontent.com/omwn/omw-data/406bf83b3c507a3d1f26e88252d5d66893fd36bf/wns/eng/citation.bib"
+      },
+      "eng-wn-data-eng.tab": {
+        "bytes": 5843130,
+        "sha256": "d1409d88addcdb890b1606dd280b558cca4258b1f33bd580d54ed949daad1ede",
+        "url": "https://raw.githubusercontent.com/omwn/omw-data/406bf83b3c507a3d1f26e88252d5d66893fd36bf/wns/eng/wn-data-eng.tab"
+      },
+      "fra-LICENSE": {
+        "bytes": 31900,
+        "sha256": "3cc8a6f74249a041a4ae4ce708bdfeff8fa7e9cd0b97ef7d3fab139087f73e51",
+        "url": "https://raw.githubusercontent.com/omwn/omw-data/406bf83b3c507a3d1f26e88252d5d66893fd36bf/wns/fra/LICENSE"
+      },
+      "fra-citation.bib": {
+        "bytes": 432,
+        "sha256": "1dbaffe4cb91ddf108ec70c04b53488d1a03e13b3d5bab3478dd170f06372b0d",
+        "url": "https://raw.githubusercontent.com/omwn/omw-data/406bf83b3c507a3d1f26e88252d5d66893fd36bf/wns/fra/citation.bib"
+      },
+      "fra-wn-data-fra.tab": {
+        "bytes": 3268432,
+        "sha256": "6effab15723bbb482f2922d42eb1db37c8586984ce7735ebfe0a096000b69f86",
+        "url": "https://raw.githubusercontent.com/omwn/omw-data/406bf83b3c507a3d1f26e88252d5d66893fd36bf/wns/fra/wn-data-fra.tab"
+      }
+    }
+  }
+}

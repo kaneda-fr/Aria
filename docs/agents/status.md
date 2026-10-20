@@ -1,5 +1,7 @@
 # Current evidence, gaps, and history
 
+**2026-10-20:** [Read/clarification/cache delivery and evidence](read-prefill-delivery-2026-10-20.md).
+
 **2026-10-19:** [Sentence voice routing](sentence-tts-2026-10-19.md) and acknowledged
 Mac delivery are implemented. Review fixes release cancelled slots, invalidate
 interrupted waiters and propagate muted scheduling. Apollo: 242 targeted tests pass.
@@ -27,7 +29,6 @@ first; a read-only Apollo apostrophe-normalization probe recovered the failed na
 in a 69-device scan at 0.015 ms median. This is not an integrated matcher or a
 general accuracy result. ESP32 subsequently connected and produced the feedback evidence above.
 The [paused-work snapshot](paused-work-2026-10-18.md) remains historical evidence.
-Serena symbol lookup works; see [code intelligence](code-intelligence.md).
 
 [Grounded lookup replies](lookup-latency-2026-10-18.md) remove the second model pass
 after read-only search. Paired Apollo lookup medians fall FR 14.95→3.98 s and EN

@@ -1,0 +1,174 @@
+{
+  "aliases": {
+    "armchair": "fauteuil",
+    "bedchamber": "chambre",
+    "business bureau": "bureau",
+    "chamber": "chambre",
+    "chambre a coucher": "chambre",
+    "coursive": "couloir",
+    "curtain": "rideau",
+    "divan": "canape",
+    "drape": "rideau",
+    "drapery": "rideau",
+    "front room": "salon",
+    "parlor": "salon",
+    "parlour": "salon",
+    "piaule": "chambre",
+    "sejour": "salon",
+    "sitting room": "salon",
+    "sleeping room": "chambre",
+    "store venitien": "store",
+    "tenture": "rideau",
+    "window blind": "store"
+  },
+  "provenance": {
+    "armchair": [
+      {
+        "lang": "eng",
+        "synset": "02738535-n",
+        "term": "armchair"
+      }
+    ],
+    "bedchamber": [
+      {
+        "lang": "eng",
+        "synset": "02821627-n",
+        "term": "bedchamber"
+      }
+    ],
+    "business bureau": [
+      {
+        "lang": "eng",
+        "synset": "03841666-n",
+        "term": "business office"
+      }
+    ],
+    "chamber": [
+      {
+        "lang": "eng",
+        "synset": "02821627-n",
+        "term": "chamber"
+      }
+    ],
+    "chambre a coucher": [
+      {
+        "lang": "fra",
+        "synset": "02821627-n",
+        "term": "chambre à coucher"
+      },
+      {
+        "lang": "fra",
+        "synset": "02821627-n",
+        "term": "Chambre à Coucher"
+      }
+    ],
+    "coursive": [
+      {
+        "lang": "fra",
+        "synset": "03112099-n",
+        "term": "coursive"
+      }
+    ],
+    "curtain": [
+      {
+        "lang": "eng",
+        "synset": "03151077-n",
+        "term": "curtain"
+      }
+    ],
+    "divan": [
+      {
+        "lang": "fra",
+        "synset": "04256520-n",
+        "term": "divan"
+      }
+    ],
+    "drape": [
+      {
+        "lang": "eng",
+        "synset": "03151077-n",
+        "term": "drape"
+      }
+    ],
+    "drapery": [
+      {
+        "lang": "eng",
+        "synset": "03151077-n",
+        "term": "drapery"
+      }
+    ],
+    "front room": [
+      {
+        "lang": "eng",
+        "synset": "03679712-n",
+        "term": "front room"
+      }
+    ],
+    "parlor": [
+      {
+        "lang": "eng",
+        "synset": "03679712-n",
+        "term": "parlor"
+      }
+    ],
+    "parlour": [
+      {
+        "lang": "eng",
+        "synset": "03679712-n",
+        "term": "parlour"
+      }
+    ],
+    "piaule": [
+      {
+        "lang": "fra",
+        "synset": "02821627-n",
+        "term": "piaule"
+      }
+    ],
+    "sejour": [
+      {
+        "lang": "fra",
+        "synset": "03679712-n",
+        "term": "séjour"
+      }
+    ],
+    "sitting room": [
+      {
+        "lang": "eng",
+        "synset": "03679712-n",
+        "term": "sitting room"
+      }
+    ],
+    "sleeping room": [
+      {
+        "lang": "eng",
+        "synset": "02821627-n",
+        "term": "sleeping room"
+      }
+    ],
+    "store venitien": [
+      {
+        "lang": "fra",
+        "synset": "04589190-n",
+        "term": "store vénitien"
+      }
+    ],
+    "tenture": [
+      {
+        "lang": "fra",
+        "synset": "03151077-n",
+        "term": "tenture"
+      }
+    ],
+    "window blind": [
+      {
+        "lang": "eng",
+        "synset": "04589190-n",
+        "term": "window blind"
+      }
+    ]
+  },
+  "schema": 1,
+  "source_commit": "406bf83b3c507a3d1f26e88252d5d66893fd36bf",
+  "wordnet_version": "3.0"
+}

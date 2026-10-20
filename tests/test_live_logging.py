@@ -126,6 +126,7 @@ async def test_lifespan_does_not_yield_before_warmup(live, monkeypatch):
     state = app_state()
     state.state.llm_config = object()
     state.state.llm_history = {}
+    state.state.plugin_registry = SimpleNamespace(get_plugin=lambda name: None)
     monkeypatch.setattr(live, 'original_lifespan', original)
     monkeypatch.setattr(live, 'install_live_tools', lambda *args: None)
     async def prime(*args, **kwargs):

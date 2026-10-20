@@ -236,3 +236,6 @@ remains open and the low-level administrative action API is outside this request
 Final source run `20261017T231411Z-control-final-8894d5`: 42 turns, 8/8 exact and truthful
 controls, eight challenge cases passed, median control audio-ready 0.70 s. Six utility/
 factual failures remain; 22 loopback destinations and no external/DNS attempts.
+
+
+Read guards: [speaker scope, timeout quarantine and validation](read-prefill-delivery-2026-10-20.md).

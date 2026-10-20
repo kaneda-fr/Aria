@@ -9,7 +9,7 @@ import copy
 import re
 import time
 
-from app.plugins.inventory.selection import normalize, domain_for, select_commands
+from app.plugins.inventory.selection import normalize, domain_for, select_commands, location_needs_clarification
 
 
 @dataclass
@@ -142,7 +142,11 @@ def resolve(text, inventory, previous_device=None):
     if (domain == 'light' and action in ('up','down')) or (domain == 'flap' and action in ('on','off')):
         return plan
     context.update(domain=domain, capability=domain+'_'+action)
-    candidates = select_commands(inventory.indexer.get_snapshot(), target, context)
+    snapshot = inventory.indexer.get_snapshot()
+    if location_needs_clarification(snapshot, target, context.get('room')):
+        plan.status = 'ambiguous'
+        return plan
+    candidates = select_commands(snapshot, target, context)
     if len(candidates) != 1:
         plan.status = 'ambiguous' if candidates else 'not_found'
         return plan
@@ -178,6 +182,8 @@ def render(plan, result=None):
                'up':('ouvrir','open'), 'down':('fermer','close'), 'slider':('régler','set')}
     verb = wording[action][0 if fr else 1]
     target = plan.command['device_name']
+    if plan.command.get('channel') is not None:
+        target += (' canal ' if fr else ' channel ') + str(plan.command['channel'])
     if action == 'slider':
         target += (' à ' if fr else ' to ') + str(plan.authorization.value) + ' %'
     if result.get('dry_run'):

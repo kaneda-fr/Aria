@@ -107,12 +107,18 @@ async def live_lifespan(app):
         try:
             app.state.warmup_result = await warmup(
                 app.state.llm_config, app.state.llm_client, runtime.SYSTEM_PROMPT,
-                tooling.TOOLS, with_tools=os.environ.get('ARIA_E2E_WARMUP_TOOLS', '1') != '0')
+                tooling.available_tools(app.state.plugin_registry.get_plugin('inventory')), with_tools=os.environ.get('ARIA_E2E_WARMUP_TOOLS', '1') != '0')
             log_turn('Live.Warmup', **app.state.warmup_result)
             app.state.warmup_ready = True
         finally:
             REQUEST.reset(token)
-        yield
+        try:
+            yield
+        finally:
+            inventory = app.state.plugin_registry.get_plugin('inventory')
+            close_read = getattr(inventory, 'close_read_connection', None)
+            if close_read is not None:
+                await close_read()
 
 
 runtime._process_request = logged_process
