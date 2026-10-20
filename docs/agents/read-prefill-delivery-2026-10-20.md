@@ -74,3 +74,22 @@ lookup, capability reporting and control resolution/rendering. Callers include t
 shared worker, inventory provider, live adapter and evaluation entry points. Dynamic
 provider/lifespan references are incompletely resolved; passing tests complement
 rather than replace this graph. No live promotion is part of this commit task.
+
+## PR review corrections and new live evidence
+
+The first review reproduced English noun-led state requests using French replies
+when an inventory label contained accents. Both read paths now use the same
+request-syntax language cues; six FR/EN cases assert exact info IDs, reply language,
+TTS language and saved history with an accented device name. The optional bridge
+switch and startup/shutdown requirements are documented in the
+[environment reference](../ENVIRONMENT.md). No model call or detector dependency
+was added. Name-only contextual language remains a separate known limit.
+
+The coordinating task also reviewed a later real conversation, separately from
+this PR's offline validation. It found unsupported household-wide status, empty
+catalog enumeration, general-weather routing and spelling variants of offered
+sources; canonical names/ordinals resolved in offline replay, but there were no
+successful live state reads. No paired baseline for those utterances exists, so
+this establishes coverage gaps, not regression attribution. These broader changes
+remain separate rather than being silently folded into this review correction.
+The maintainer has stopped the backend, bridge and Mac audio; nothing was restarted.

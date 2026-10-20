@@ -385,3 +385,29 @@ See [named-client protocol](agents/client-protocol.md) and [monitor operations](
 Sentence voice routing uses the existing `ARIA_TTS_VOICE_MAP` French/English models.
 `ARIA_TTS_CHUNKING=0` disables size grouping, but retains sentence boundaries when
 the voice changes. No detector dependency or additional model is required.
+
+## Optional local Jeedom reads (development adapter)
+
+`ARIA_JEEDOM_READ_SOCKET` defaults to unset. In `scripts.e2e.live_server`, set it to
+an absolute Unix-domain socket path to select `ReadOnlyInventory` instead of the
+cached-inventory provider. The bridge must already be running and accessible to
+the server process; an unreachable socket fails adapter startup. It exposes
+`GET /catalog` and `POST /read` for enabled info commands only, never actions.
+The adapter's action provider remains log-only. The ordinary server CLI does not
+consume this switch.
+
+Prepare the bridge with a local inventory cache and an owned private-LAN MQTT
+broker address, for example (substitute local paths/address):
+
+```sh
+python -m app.plugins.inventory.read_bridge --cache /path/to/inventory.json \
+  --host 192.168.1.2 --socket /path/to/jeedom-read.sock
+export ARIA_JEEDOM_READ_SOCKET=/path/to/jeedom-read.sock
+```
+
+The bridge uses
+restrictive socket permissions (`umask 077`), so run it under the same account or
+provide deliberately scoped local access. Start it before the adapter; stop the
+adapter before the bridge. Runtime calls stay on owned LAN/Unix sockets; the
+bridge does not provide forecast inference, a cloud fallback or action execution.
+Tests must use a synthetic read fixture and captured output, not this live broker.

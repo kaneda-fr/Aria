@@ -67,3 +67,39 @@ async def test_direct_read_cannot_bypass_native_type_conflict(server, reader, mo
     assert not reads
     model.assert_not_awaited()
     await provider.close_read_connection()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('text,language,fragment', [
+    ('Status of Lampe Canapé', 'en', 'Jeedom reports:'),
+    ('State of Lampe Canapé', 'en', 'Jeedom reports:'),
+    ('What is the state of Lampe Canapé?', 'en', 'Jeedom reports:'),
+    ('Statut de Lampe Canapé', 'fr', 'Jeedom indique :'),
+    ('État de Lampe Canapé', 'fr', 'Jeedom indique :'),
+    ('Quel est l’état de Lampe Canapé ?', 'fr', 'Jeedom indique :'),
+])
+async def test_read_syntax_controls_reply_and_voice_despite_accented_name(
+        server, reader, monkeypatch, text, language, fragment):
+    from dataclasses import replace
+    import app.main as runtime
+    client, state = server
+    provider, reads = reader
+    device = provider.indexer.get_device('1')
+    provider.indexer.add_device(replace(device, name='Lampe Canapé'))
+    monkeypatch.setenv('ARIA_LLM_HISTORY_MAX_MESSAGES', '6')
+    state.plugin_registry = SimpleNamespace(
+        get_plugins_by_type=lambda _: [provider], get_plugin=lambda _: None)
+    model = AsyncMock(side_effect=AssertionError('Read must not generate a reply'))
+    monkeypatch.setattr(runtime, 'generate_llm_response', model)
+    try:
+        reply = (await client.post('/api/llm/process', json={
+            'text': text, 'session_id': 'read-language', 'speak_response': True,
+        })).raise_for_status().json()
+        assert fragment in reply['response']
+        assert 'Lampe Canapé' in reply['response']
+        assert reads == [['101', '102']]
+        assert state.speech_output.speak.await_args.kwargs['language'] == language
+        assert state.llm_history['read-language'][-1]['content'] == reply['response']
+        model.assert_not_awaited()
+    finally:
+        await provider.close_read_connection()

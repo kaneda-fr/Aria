@@ -547,7 +547,7 @@ async def _process_request(app: FastAPI, job: AssistantRequest) -> dict[str, Any
     from app.llm.control import ControlMemory, Plan, resolve, render
     from app.llm.local_answers import LocalAnswer, clock_answer, capability_answer
     from app.llm.lookup_reply import render_lookup_results
-    from app.plugins.inventory.read_requests import resolve_read_request, answer_read_request
+    from app.plugins.inventory.read_requests import resolve_read_request, answer_read_request, read_syntax_language
     from app.llm.history_prefill import cancel_prefill, schedule_prefill
 
     await cancel_prefill(app.state)
@@ -642,12 +642,13 @@ async def _process_request(app: FastAPI, job: AssistantRequest) -> dict[str, Any
         action_result = None
         local_answer = clock_answer(text) or capability_answer(
             text, inventory_provider, actions_provider, tools_enabled=use_tools)
+        read_language = read_syntax_language(text) or language
         if (local_answer is None and use_tools and callable(getattr(inventory_provider, 'read_state', None))
                 and getattr(inventory_provider, 'indexer', None) is not None
                 and measurement_request(text)
                 and location_needs_clarification(inventory_provider.indexer.get_snapshot(), text, extra=READ_WORDS)):
-            local_answer = LocalAnswer(render_state({'status': 'ambiguous'}, language),
-                                       language, 'read_clarification')
+            local_answer = LocalAnswer(render_state({'status': 'ambiguous'}, read_language),
+                                       read_language, 'read_clarification')
         if (local_answer is None and use_tools and callable(getattr(inventory_provider, 'read_state', None))
                 and getattr(inventory_provider, 'indexer', None) is not None):
             read_args = resolved_read_request(inventory_provider.indexer.get_snapshot(), text, read_history)
@@ -657,7 +658,7 @@ async def _process_request(app: FastAPI, job: AssistantRequest) -> dict[str, Any
                     tool_args={**read_args, 'request_text': text, 'request_history': read_history},
                     inventory_provider=inventory_provider, actions_provider=actions_provider)
                 tool_calls_made = 1
-                local_answer = LocalAnswer(render_state(read_result, language), language, 'read_clarification')
+                local_answer = LocalAnswer(render_state(read_result, read_language), read_language, 'read_clarification')
                 memory = getattr(app.state, 'control_memory', None)
                 if memory is None:
                     memory = app.state.control_memory = ControlMemory()

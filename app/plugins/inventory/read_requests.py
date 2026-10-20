@@ -88,6 +88,17 @@ def _without(text, spans):
     return ' '.join(''.join(chars).split())
 
 
+def read_syntax_language(syntax):
+    """Prefer explicit request grammar over accents inside inventory labels."""
+    syntax = normalize(syntax)
+    if re.match(r'^(?:and )?(?:what|which|how|is|are|read|show|tell|give|list|do not|don t|its|state|status|capabilities|controls)\b', syntax):
+        return 'en'
+    elif re.match(r'^(?:et )?(?:que|quel|quelle|quels|quelles|la|le|les|est|sont|lis|lire|affiche|montre|dis|donne|ne|son|sa|ses|etat|statut|capacites|commandes)\b', syntax):
+        return 'fr'
+    else:
+        return None
+
+
 def resolve_read_request(text, snapshot, previous_device=None):
     raw = normalize(text)
     for _ in range(5):
@@ -124,13 +135,7 @@ def resolve_read_request(text, snapshot, previous_device=None):
     if kind is None:
         return None
     # Inventory labels are not evidence of the user's language.
-    syntax = rest
-    if re.match(r'^(?:and )?(?:what|which|how|is|are|read|show|tell|give|list|do not|don t|its|state|status|capabilities|controls)\b', syntax):
-        language = 'en'
-    elif re.match(r'^(?:et )?(?:que|quel|quelle|quels|quelles|la|le|les|est|sont|lis|lire|affiche|montre|dis|donne|ne|son|sa|ses|etat|statut|capacites|commandes)\b', syntax):
-        language = 'fr'
-    else:
-        language = None
+    language = read_syntax_language(rest)
     def result(status, **kw):
         return ReadRequest(kind, status, language=language, **kw)
     if NO_READ.search(raw):
