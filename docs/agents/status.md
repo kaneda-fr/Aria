@@ -1,9 +1,11 @@
 # Current evidence, gaps, and history
 
 **2026-11-11 — real Jeedom validation and TTS isolation:** [Results](status-live-and-tts-2026-11-11.md).
-28 FR/EN cases pass with actual reads, clarification/resumption and eight log-only
-commands. Per-command quarantine now preserves healthy devices in repeated group reads.
-832 local / 810 server tests pass. The English TTS spike is reproduced and isolated
+[PR #5](https://github.com/kaneda-fr/Aria/pull/5): 34 FR/EN real-read cases verified,
+with clarification/resumption and eight log-only commands; language-oracle false flags
+are retained and independently audited in the report. Per-command quarantine now preserves healthy devices in repeated group reads.
+852 local / 830 server tests pass. Review fixes protect ordinal choices, explicit
+observation identity, incomplete-catalog claims and post-read definition changes. The English TTS spike is reproduced and isolated
 mainly to Piper under prefill; disabling prefill hurts the preceding model turn,
 so defaults remain. All test units stopped, no physical audio or live deployment.
 The attached `codex/lights-questions` worktree contains the changes for PR review.

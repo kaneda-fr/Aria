@@ -137,6 +137,10 @@ def resolve_light_query(text, snapshot, history=(), *, spoken=False, language='f
     language=read_syntax_language(raw) or ('en' if re.match(r'^(?:my|our|your|can|could|and|the|those|their|them|in)\b',raw) else
                                          'fr' if re.match(r'^(?:mes|nos|vos|combien|y a|statue|et|celle|celui|leur|leurs|dans|meme)\b',raw) else
                                          context.language if context else language)
+    short_choice=bool(context and any(raw in ('the '+w+' one',w+' one') for w in ORDINAL)
+                      and not any(normalize(d.name)==raw for d in devices.values()))
+    if short_choice:
+        raw=raw[:-4];words=set(raw.split())
     key=_form(raw)
     if not re.search(r'\b(?:room|piece)\b', raw):
         key=re.sub(r'\b(?:a la maison|dans la maison|at home|in the house|around the house|chez moi)\b', ' ', key)
@@ -144,6 +148,7 @@ def resolve_light_query(text, snapshot, history=(), *, spoken=False, language='f
     mentions=[(s,e,k) for k,d in devices.items() for form in _device_forms(d.name)
               if set(form.split())-{'light'} for s,e in _spans(key,form)]
     mentions=[(s,e,k) for s,e,k in mentions if not any(s>=a and e<=b and (s,e)!=(a,b) for a,b,_ in mentions)]
+    if short_choice:mentions=[]
     nonlight=any(d.enabled and not is_light(d) and contains(key,_form(d.name))
                  for d in snapshot.devices.values())
     if nonlight and not has_type:return None
@@ -190,6 +195,12 @@ def resolve_light_query(text, snapshot, history=(), *, spoken=False, language='f
     channel=int(channels[0].group(1)) if channels else None
     rest=_without(key,[(s,e) for s,e,_ in mentions]+[(m.start(),m.end()) for m in channels])
     selectors=set(rest.split())-SYNTAX-set(ORDINAL)
+    if context and not has_type and not mentions and ordinal is not None:
+        labels=[name+(f' ({room})' if room else '') for _,name,room in context.targets[:5]]
+        offered=('Quelle lumière souhaitez-vous : ' if context.language=='fr' else 'Which light do you mean: ')+', '.join(labels)+'?'
+        if (context.status!='ambiguous' or offered!=history[-1].get('content') or
+                len(labels)!=len(set(labels))):
+            return plan('ambiguous',[devices[i] for i,_,_ in context.targets if i in devices])
     candidates=[devices[k] for k in sorted({k for _,_,k in mentions})] if mentions else list(devices.values())
     if context and not has_type and not mentions and channel is None:
         channel=context.channel

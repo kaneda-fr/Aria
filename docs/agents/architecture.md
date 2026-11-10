@@ -211,11 +211,10 @@ the live log viewport, with compact status/metrics and expandable help.
 
 [Read/clarification and cache paths](read-prefill-delivery-2026-10-20.md).
 
-[Lighting questions](light-questions-2026-10-21.md) use bounded inventory selection,
-strict room/channel filters and same-speaker follow-ups in the shared worker.
-[The status pilot](status-pilot-2026-11-10.md) adds cover queries, typed facts and
-FR/EN everyday replies. Identity-bound mappings interpret cover polarity; missing
-values or changed definitions stay unknown. Reads use at most eight info IDs,
-without a new model or action authority. Weather/sensor semantics are unchanged.
-[Timeout quarantine](status-live-and-tts-2026-11-11.md) is per command: healthy reads
-continue in mixed batches; late replies are drained before retrying a blocked ID.
+[Lighting questions](light-questions-2026-10-21.md) use inventory selection, strict
+room/channel filters and same-speaker follow-ups. [Typed status facts](status-pilot-2026-11-10.md)
+add covers and everyday FR/EN replies. Identity-bound mappings interpret polarity;
+missing data stay unknown. Reads use at most eight info IDs, with no new model or
+action authority. [Read safeguards](status-live-and-tts-2026-11-11.md) revalidate
+frozen definitions after receipt, require observation identity and preserve uncertainty
+for incomplete inventories. Quarantine is per command; late replies are drained.

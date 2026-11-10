@@ -117,3 +117,70 @@ faits partagés, la calibration partielle et l’isolation de la quarantaine. El
 revendique pas la résolution du pic TTS ni un gain uniforme de latence. Le service
 réel reste arrêté ; déploiement depuis main et essai vocal réel attendent la suite
 explicitement demandée par le mainteneur. Aucun merge automatique.
+
+## Corrections de revue avant livraison
+
+La première revue Copilot du head `71b1a8e` confirme trois défauts modérés : choix
+ordinal de lumière reposant sur des propositions recalculées, acceptation d’une
+observation sans `device_id`, et affirmation globale/exacte malgré un catalogue
+incomplet. Une relecture supplémentaire reproduit aussi une définition périmée dans
+les deux variantes de lecture legacy. L’unité passe de % à W pendant l’attente,
+mais l’ancien snapshot permettait encore un fait « allumée ».
+
+Les corrections refusent les choix ordinaux lorsque les libellés affichés ont
+changé ou sont indiscernables, exigent l’identité explicite de l’observation et
+traitent le catalogue incomplet comme une incertitude pour les universels/comptes.
+Les témoins existentiels positifs et contre-exemples valides restent utilisables.
+La grammaire courte des choix anglais accepte les pronoms d’ordinal sans effacer
+une pièce inconnue ou un nom d’équipement déclaré.
+
+Les quatre lecteurs de statuts capturent les définitions avant l’attente, puis
+vérifient le catalogue après réception. Des définitions modifiées, désactivées ou
+impossibles à revérifier rendent la lecture indisponible. Les lecteurs legacy et
+les chemins directs partagent ce contrôle ; météo et autres métriques conservent
+leur parcours. Cela ajoute un contrôle local de catalogue, sans nouvelle génération,
+ni publication MQTT supplémentaire de valeur/commande.
+
+Seize cas supplémentaires sont observés RED avant correction, puis GREEN. Quatre
+autres couvrent les choix inchangés et l’échec du contrôle de catalogue. La suite
+complète passe désormais **852 tests locaux / 830 tests serveur**, quatre avertissements
+existants. Les impacts projection/rendu sont HIGH ; le résolveur lumière est LOW.
+Le graphe ne résout pas les dispatchs dynamiques des méthodes legacy ; leurs callers
+outil LLM / lecture résolue et les deux lecteurs groupés sont vérifiés en source/tests.
+
+Le dernier build est testé dans **34 cas réels FR/EN** : 18 lectures aux IDs exacts,
+huit commandes log-only, quatre paires clarification/reprise et quatre réponses
+générales. Les valeurs et états indisponibles sont vérifiés indépendamment, avec
+voix et langue demandée correctes. Les 28 cas communs gardent 26 réponses identiques ;
+les deux changements retirent le « oui » global non prouvé. Aucun changement de modèle,
+d’historique, d’action réelle ou de traitement TTS/préchargement n’est introduit.
+
+Le banc réorganisé contenait une erreur d’oracle : son contrôle TTS comparait chaque
+cas à la dernière variable de groupe (`en`), générant **17 faux signalements français**.
+Ils restent dans le rapport brut. Un audit séparé vérifie, pour chacun des 34 cas,
+la langue demandée, la langue TTS et le fichier de voix réellement sélectionné :
+aucune discordance réelle ni autre échec. Le script de reproduction est corrigé et
+sa version exécutée est conservée. Il ne s’agit donc pas de 34 passes automatiques
+sans aucun drapeau brut.
+
+| Même groupe de sept lectures par langue | Avant revue | Après corrections |
+| --- | --- | --- |
+| Médiane FR | 1,125 s | 0,997 s |
+| Maximum FR | 1,481 s | 1,189 s |
+| Médiane EN | 1,148 s | 1,182 s |
+| Maximum EN | 1,305 s | 1,401 s |
+
+Le retrait du « oui » permet aussi une réutilisation de WAV identique pour un état
+courant, ce qui influence les minima/médianes. Une exécution par build et langue ne
+prouve pas un gain uniforme ; le maximum anglais augmente d’environ 95 ms dans ce
+groupe. Les contrôles de file FR/EN passent à 4,761 / 4,451 s. Audit : 40 requêtes
+acceptées/40 issues terminales, deux rejets de surcharge attendus, réseau d’inférence
+loopback uniquement (37 destinations observées), et publications du pont info-get
+uniquement. Les 103 fichiers Python de produit sont vérifiés par hash, les unités
+d’essai sont arrêtées et aucun client audio réel n’est relancé.
+
+Le diagnostic préchargement/Piper de la section précédente concerne le head avant
+ces protections ; ses réponses étaient identiques à sa référence. Il ne faut pas
+lire cette comparaison comme une promesse d’égalité textuelle après les corrections
+sémantiques. La [PR #5](https://github.com/kaneda-fr/Aria/pull/5) contient le pilote et
+ces protections ; une revue sur le head corrigé est requise avant de conclure.

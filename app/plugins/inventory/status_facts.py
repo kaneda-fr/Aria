@@ -16,6 +16,36 @@ def command_identity(device, command):
                 capability=command.capability)
 
 
+def capture_status_binding(snapshot, commands):
+    """Freeze interpretation metadata before awaiting a provider response."""
+    caps={c.capability for c in commands}
+    domain='light' if caps=={'light_state'} else 'cover' if caps=={'flap_state'} else None
+    if domain is None:return None
+    identities=tuple((d.eq_id,d.name,d.room) for eq in dict.fromkeys(c.device_id for c in commands)
+                     if (d:=snapshot.devices.get(eq)) is not None)
+    return {'domain':domain,'identities':identities,'definitions':{
+        c.cmd_id:command_identity(snapshot.devices[c.device_id],c) for c in commands}}
+
+
+def guard_status_readings(snapshot, binding, result, *, verified=True):
+    """Quarantine evidence whose selected identity/definition cannot be revalidated."""
+    expected=binding['definitions'];actual={}
+    for cid,identity in expected.items():
+        device=snapshot.devices.get(identity['device_id'])
+        if device is None or not device.enabled:continue
+        command=next((c for c in device.commands if c.cmd_id==cid and c.type=='info'),None)
+        if command is not None:actual[cid]=command_identity(device,command)
+    rows=[]
+    for row in result.get('readings',[]):
+        cid=row.get('cmd_id')
+        if cid not in expected:continue
+        valid=verified and actual.get(cid)==expected[cid]
+        rows.append(row if valid else {**row,'status':'unavailable',
+                    'error':'definition_changed' if verified else 'catalog_unavailable'})
+    return {**result,'success':bool(result.get('success')) and any(r.get('status')=='ok' for r in rows),
+            'readings':rows}
+
+
 @lru_cache(maxsize=4)
 def _load_file(path):
     try:
@@ -117,7 +147,7 @@ def project_status(snapshot, identities, result, domain, mappings=None, *, chann
         states=[];positions=[];refs=[];unknown=0;freshness=[]
         for c in commands:
             expected+=1;row=by_id.get(c.cmd_id,{})
-            valid=(frequencies[c.cmd_id]==1 and row.get('device_id',eq)==eq)
+            valid=(frequencies[c.cmd_id]==1 and row.get('device_id')==eq)
             if not valid:row={}
             if valid and row.get('status')=='ok':read_count+=1
             state,position,reason=_interpret(d,c,row,domain,mappings)
@@ -199,7 +229,8 @@ def render_status(report, language='fr', *, wanted=None, count=False, quantifier
         # Keep unknown properties visible even when filtering known states.
         if quantifier or f in selected or f['unknown_channels'] or state=='unknown':
             details.append(f['label']+' : '+description)
-    uncertain=(not facts or len(facts)!=report['coverage']['selected_devices'] or
+    uncertain=(not report['scope']['catalog_complete'] or not facts or
+               len(facts)!=report['coverage']['selected_devices'] or
                any(f['unknown_channels'] or f['value']=='unknown' for f in facts))
     if count:
         n=len(selected)
