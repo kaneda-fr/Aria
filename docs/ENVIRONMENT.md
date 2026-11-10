@@ -417,3 +417,30 @@ until the outstanding non-retained response arrives and is discarded. Repeated
 requests return unavailable without republishing; there is no timer-based retry.
 Other command IDs remain usable. The MQTT value protocol has no request nonce;
 measurement time stays unknown and restarting is not a freshness guarantee.
+
+## Typed light/cover status pilot
+
+`ARIA_STATUS_MAP_FILE` is optional and unset by default. Set it to an absolute path
+in local ignored configuration, for example `/path/to/private/status-map.json`.
+This is used by the read-capable adapter and shared status projection; it does not
+turn a standard inventory-only provider into a state reader. See the
+[status pilot](agents/status-pilot-2026-11-10.md).
+
+The JSON envelope is `{"schema":"aria.status-map/1","mappings":{}}`. Each mapping
+key is `<source>:<info-command-id>` and contains `identity`, `closed_value`,
+`open_value`, and optionally `max_age_s`. `identity` must exactly match
+`command_identity(device, command)` in `app/plugins/inventory/status_facts.py`:
+source, device_id, device_name, room, command_id, command_name, subtype, unit,
+range (array or null), and capability. Use real installation values only locally.
+A changed identity blocks the old mapping. Reverse endpoints are allowed; do not
+infer endpoints from an action range or move a shutter to guess them. Missing or
+invalid mappings yield unknown position. Files are cached by path until restart.
+For a maintainer-confirmed closed observation with no verified open endpoint, set
+`"calibration":"closed_only"` and `closed_value`, omitting `open_value`. Only that
+exact observed value becomes closed; any other value remains unknown. This explicit
+partial mode cannot be combined with an open endpoint. Without the mode, both
+endpoints are still mandatory. An unavailable reading never becomes closed merely
+because the calibration file exists. Keep uncalibrated devices outside `mappings`.
+
+A positive `max_age_s` can qualify an actual observation timestamp; retrieval time
+alone never establishes freshness. No model, network download or fallback is used.

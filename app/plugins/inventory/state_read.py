@@ -383,6 +383,9 @@ def select_read_commands(snapshot, query, metric=None, room=None, *, domain=None
 
 
 def render_state(result, language='en'):
+    if result.get('status_report'):
+        from .status_facts import render_status
+        return render_status(result['status_report'], language)
     fr = language == 'fr'
     status = result.get('status')
     if status == 'ambiguous':
@@ -512,8 +515,18 @@ class ReadOnlyInventory(InventoryProvider):
         except (httpx.HTTPError, ValueError):
             return {'success': False, 'status': 'disconnected'}
         kinds = {c.cmd_id: metric_for(c) for c in commands}
-        for row in result.get('readings', []):
-            row['metric'] = kinds.get(row['cmd_id'])
+        result['readings']=[dict(row,metric=kinds[row['cmd_id']]) for row in result.get('readings',[])
+                            if row.get('cmd_id') in kinds]
+        caps={c.capability for c in commands}
+        domain='light' if caps=={'light_state'} else 'cover' if caps=={'flap_state'} else None
+        if domain:
+            from .status_facts import project_status
+            identities=[(d.eq_id,d.name,d.room) for eq in dict.fromkeys(c.device_id for c in commands)
+                        if (d:=snapshot.devices.get(eq)) is not None]
+            _, selected_channel=split_channel(entity_text(source['query']))
+            result['status_report']=project_status(snapshot,identities,result,domain,channel=selected_channel,
+                catalog_complete=getattr(self,'bridge_status',{}).get('catalog_complete',False),
+                catalog_version=getattr(self,'bridge_status',{}).get('catalog_version'))
         return result
 
     async def close_read_connection(self):
@@ -557,4 +570,67 @@ class ReadOnlyInventory(InventoryProvider):
         result['readings'] = [dict(row, metric=kinds[row['cmd_id']])
                               for row in result.get('readings', []) if row.get('cmd_id') in kinds]
         result['requested_metric'] = metric
+        caps={c.capability for c in commands}
+        domain='light' if caps=={'light_state'} else 'cover' if caps=={'flap_state'} else None
+        if metric=='state' and domain:
+            from .status_facts import project_status
+            result['status_report']=project_status(snapshot,[(device_id,device.name,device.room)],
+                result,domain,channel=channel,
+                catalog_complete=getattr(self,'bridge_status',{}).get('catalog_complete',False),
+                catalog_version=getattr(self,'bridge_status',{}).get('catalog_version'))
         return result
+
+    async def read_light_states(self, identities, channel=None):
+        """Read at most eight typed light-state IDs in one bridge request."""
+        import httpx
+        from .light_queries import light_state_commands
+        if not self.is_started:
+            return {'success': False, 'status': 'unavailable'}
+        await self.refresh_live_inventory(force=True)
+        selection = light_state_commands(self.indexer.get_snapshot(), identities, channel)
+        if selection['status'] != 'ready':
+            return {'success': False, **selection}
+        commands = selection['commands']
+        if not commands:
+            return {'success': False, 'status': 'unavailable', 'readings': []}
+        try:
+            response = await self.read_client.post('/read', json={'cmd_ids': [c.cmd_id for c in commands]})
+            response.raise_for_status()
+            result = response.json()
+        except (httpx.HTTPError, ValueError):
+            return {'success': False, 'status': 'disconnected', 'read_attempted': True}
+        allowed = {c.cmd_id for c in commands}
+        return {**result, 'read_attempted': True,
+                'readings': [dict(row, metric='state') for row in result.get('readings', [])
+                             if row.get('cmd_id') in allowed]}
+
+    async def read_status_states(self, identities, domain, channel=None):
+        """Read selected cover/light info only, within the existing bridge budget."""
+        import httpx
+        from .selection import matches_channel
+        if not self.is_started or domain not in ('cover','light'):
+            return {'success':False,'status':'unavailable'}
+        if not identities or len(identities)>8:
+            return {'success':False,'status':'too_many'}
+        await self.refresh_live_inventory(force=True)
+        snapshot=self.indexer.get_snapshot()
+        cap='flap_state' if domain=='cover' else 'light_state'
+        commands=[]
+        for eq,name,room in identities:
+            device=snapshot.devices.get(eq)
+            if not device or not device.enabled or (device.name,device.room)!=(name,room):
+                return {'success':False,'status':'not_found'}
+            commands.extend(c for c in device.commands if c.type=='info' and c.capability==cap and
+                            (channel is None or matches_channel(c,channel)))
+        if len(commands)>8:return {'success':False,'status':'too_many'}
+        allowed={c.cmd_id for c in commands}
+        if not commands or len(allowed)!=len(commands):
+            return {'success':False,'status':'unavailable','readings':[]}
+        try:
+            response=await self.read_client.post('/read',json={'cmd_ids':[c.cmd_id for c in commands]})
+            response.raise_for_status()
+            result=response.json()
+        except (httpx.HTTPError,ValueError):
+            return {'success':False,'status':'disconnected','read_attempted':True}
+        return {**result,'read_attempted':True,
+                'readings':[dict(r,metric='state') for r in result.get('readings',[]) if r.get('cmd_id') in allowed]}

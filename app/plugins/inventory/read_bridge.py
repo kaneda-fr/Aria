@@ -158,10 +158,12 @@ class JeedomReadBridge:
                     if not cmd or cmd.type != 'info' or not device or not device.enabled:
                         return {'success': False, 'status': 'invalid_read'}
                     commands.append((cmd, device))
-                if any(cmd.cmd_id in self.quarantined for cmd, _ in commands):
-                    return {'success': False, 'status': 'awaiting_previous_response'}
-                self.pending = {cmd.cmd_id: {'event': threading.Event()} for cmd, _ in commands}
+                blocked = {cmd.cmd_id for cmd, _ in commands if cmd.cmd_id in self.quarantined}
+                self.pending = {cmd.cmd_id: {'event': threading.Event()} for cmd, _ in commands
+                                if cmd.cmd_id not in blocked}
                 for cmd, _ in commands:
+                    if cmd.cmd_id in blocked:
+                        continue
                     # This is the only application publish in this service.
                     self.pending[cmd.cmd_id]['sent'] = True
                     self.client.publish(f'{self.root}/cmd/get/{cmd.cmd_id}', '', qos=1, retain=False)
@@ -172,17 +174,20 @@ class JeedomReadBridge:
             with self.lock:
                 readings = []
                 for cmd, device in commands:
-                    p = self.pending[cmd.cmd_id]
+                    p = self.pending.get(cmd.cmd_id, {})
                     row = {'cmd_id': cmd.cmd_id, 'device_id': device.eq_id,
                            'device_name': device.name, 'name': cmd.name,
                            'capability': cmd.capability, 'unit': cmd.unit,
                            'source': device.source, 'observed_at': None,
                            'status': 'ok' if 'value' in p else 'unavailable'}
+                    if cmd.cmd_id in blocked:
+                        row['error'] = 'awaiting_previous_response'
                     if 'value' in p:
                         row.update(value=p['value'], retrieved_at=p['retrieved_at'])
                     readings.append(row)
                 return {'success': any(r['status'] == 'ok' for r in readings),
-                        'status': 'read', 'readings': readings}
+                        'status': 'read' if self.pending else 'awaiting_previous_response',
+                        'readings': readings}
         finally:
             with self.lock:
                 # No time-based retry can prove an old reply has left the wire.

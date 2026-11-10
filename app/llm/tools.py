@@ -336,6 +336,11 @@ def format_tool_result_for_llm(tool_result: Dict[str, Any], *, language: str = "
 
     Converts JSON result to a concise text description.
     """
+    if tool_result.get("status_report"):
+        report={k:v for k,v in tool_result['status_report'].items() if k!='observations'}
+        instruction=("Décris uniquement ces faits et leurs limites en français, avec des mots du quotidien."
+                     if language=="fr" else "Describe only these facts and their limits in everyday English.")
+        return json.dumps(report,ensure_ascii=False,separators=(",",":"))+"\n"+instruction
     if not tool_result.get("success", False):
         error = tool_result.get("error", "Unknown error")
         return f"Error: {error}"

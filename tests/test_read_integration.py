@@ -71,12 +71,12 @@ async def test_direct_read_cannot_bypass_native_type_conflict(server, reader, mo
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('text,language,fragment', [
-    ('Status of Lampe Canapé', 'en', 'Jeedom reports:'),
-    ('State of Lampe Canapé', 'en', 'Jeedom reports:'),
-    ('What is the state of Lampe Canapé?', 'en', 'Jeedom reports:'),
-    ('Statut de Lampe Canapé', 'fr', 'Jeedom indique :'),
-    ('État de Lampe Canapé', 'fr', 'Jeedom indique :'),
-    ('Quel est l’état de Lampe Canapé ?', 'fr', 'Jeedom indique :'),
+    ('Status of Lampe Canapé', 'en', 'Lights:'),
+    ('State of Lampe Canapé', 'en', 'Lights:'),
+    ('What is the state of Lampe Canapé?', 'en', 'Lights:'),
+    ('Statut de Lampe Canapé', 'fr', 'Lumières :'),
+    ('État de Lampe Canapé', 'fr', 'Lumières :'),
+    ('Quel est l’état de Lampe Canapé ?', 'fr', 'Lumières :'),
 ])
 async def test_read_syntax_controls_reply_and_voice_despite_accented_name(
         server, reader, monkeypatch, text, language, fragment):

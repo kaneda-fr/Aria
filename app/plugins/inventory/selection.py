@@ -33,7 +33,7 @@ ENTITY_ALIASES = (
     ('salle a manger', 'salle manger'), ('dining room', 'salle manger'),
     ('living room', 'salon'), ('lounge', 'salon'), ('hallway', 'couloir'),
     ('corridor', 'couloir'), ('kitchen', 'cuisine'), ('bedroom', 'chambre'),
-    ('office', 'bureau'), ('entrance', 'entree'), ('sofa', 'canape'), ('couch', 'canape'),
+    ('office', 'bureau'), ('entrance', 'entree'), ('garden', 'jardin'), ('sofa', 'canape'), ('couch', 'canape'),
 )
 
 
