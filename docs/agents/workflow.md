@@ -10,6 +10,14 @@
 
 ## Commands and prerequisites
 
+For light/cover semantics, run the [status pilot checks](status-pilot-2026-11-10.md#reproduction-sûre).
+For lighting-question changes, follow the [read-only validation](light-questions-2026-10-21.md).
+Run lighting/safety, read-request, grounded-control and lexical tests, then compare
+French/English exact info IDs, mixed/unavailable state replies, clarification,
+action IDs/payloads and queue-inclusive first-WAV latency on the target server.
+Use controlled catalogue observations for truth oracles and saved PCM for ASR;
+keep physical audio paused and actions log-only during automated comparisons.
+
 For the ESP32 microphone client, use the pinned PlatformIO build and host checks in
 [its README](../../client/esp32/README.md). Run
 `python3 -m unittest discover -s client/esp32/tests -v` and

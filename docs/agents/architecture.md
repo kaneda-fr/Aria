@@ -1,7 +1,7 @@
 # Architecture and task map
 
-Reviewed: 2026-10-18 against `feature/plugin-system` at `905fd38` plus working-tree
-changes. Source presence is not deployment evidence; see [status](status.md).
+Updated: 2026-10-21 for lighting questions on main `7ba8250` plus candidate changes.
+Source presence is not deployment evidence; see [status](status.md).
 
 For future choices, see the [options review](architecture-options.md).
 This page describes implementation; D-001 remains open.
@@ -53,10 +53,8 @@ live claims are rejected. Audio buffers are never resumed. See the
 stateless requests must include the name each time. Person recognition does not
 serve as the conversation-session key.
 
-Voice input alone canonicalizes bounded vocative spellings (Ari, Arya, Ariya,
-Ariah; greeting-qualified area). The request body and raw transcript are preserved;
-HTTP still requires the exact name. This repairs observed ASR name spellings, not
-arbitrary recognition errors. See [spoken-wake follow-up](spoken-wake-2026-10-18.md).
+Voice alone canonicalizes bounded vocative spellings, preserving raw transcripts;
+HTTP requires the exact name. See [spoken-wake follow-up](spoken-wake-2026-10-18.md).
 
 The default 30-second idle window begins after `SpeechOutput.playback_done`, which
 estimates playback from audio duration and does not acknowledge physical audibility.
@@ -156,9 +154,8 @@ and does not cancel accepted work. See [client protocol](client-protocol.md).
   request/reply logging, with request IDs propagated to Mac audio playback. Its
   speaker model is prepared locally before offline startup; production modules
   do not import this adapter. See the [live guide](../../client/macos/README.md).
-- Live startup primes the system prompt plus `TOOLS` with one token before readiness;
-  output is discarded without history, tool dispatch or speech. A fixed Piper message
-  preserves that prefix. See [warm-up evidence](warmup-2026-10-18.md).
+- Live startup primes system plus `TOOLS` with one discarded token, without dispatch,
+  history or speech. See [warm-up evidence](warmup-2026-10-18.md).
 - Every Ollama request sends `keep_alive_s` (default `-1`, configurable through
   `ARIA_LLM_KEEP_ALIVE_S`). This retains model/cache without periodic inference,
   not arbitrary history or immunity to eviction. See [idle evidence](idle-residency-2026-10-18.md).
@@ -189,18 +186,13 @@ See [settings](../ENVIRONMENT.md); verify source readers. The explicit package l
 in [pyproject.toml](../../pyproject.toml) includes routing and speaker recognition.
 The merge check built a wheel and imported the packaged app outside the checkout.
 
-Ollama startup prepares a local alias when the installed model template renders
-`.Function` as a Go struct: it renders the whole tool as JSON and quotes the
-function-name example. Existing weights/settings are reused; no pull or request-time
-repair is added. Lookup results group commands by device, declare current state
-unknown, and carry the request language. Paired evaluation remains necessary.
+Ollama startup repairs the tool template through a local alias, reusing cached
+weights/settings. No pull or request-time repair is added. Lookup results distinguish
+inventory from current state and carry the request language.
 
-Read-only `find_devices` batches now finish through `app/llm/lookup_reply.py` without
-a second generation pass. It renders inventory capabilities in the request language,
-keeps same-named device identities separate, exposes truncation/failures and never
-claims current state or completed control. Model selection and first-call prompt/tool
-schema remain unchanged; this is not expanded control grammar or a decision on
-Option A. See [lookup latency evaluation](lookup-latency-2026-10-18.md).
+Read-only `find_devices` finishes through `app/llm/lookup_reply.py` without a second
+generation. It preserves identities, request language and truncation/failures,
+without claiming current state or completed control. See [lookup evaluation](lookup-latency-2026-10-18.md).
 
 `monitor.server` reads bounded local logs and polls `/api/clients` via Unix socket;
 it never enters the inference queue. `monitor.ingress` separately forwards LAN
@@ -218,3 +210,10 @@ it does not disconnect clients or clear conversation history. The layout priorit
 the live log viewport, with compact status/metrics and expandable help.
 
 [Read/clarification and cache paths](read-prefill-delivery-2026-10-20.md).
+
+[Lighting questions](light-questions-2026-10-21.md) and [typed status facts](status-pilot-2026-11-10.md)
+use strict room/channel scope, identity-bound mappings and at most eight info IDs.
+[Shared query roles](status-query-roles-2026-11-11.md), `inventory/query_roles.py`,
+separate names, predicates and literal rooms; ambiguous scope asks before reading.
+[Read guards](status-live-and-tts-2026-11-11.md) revalidate frozen definitions and
+observation identity, preserve incomplete coverage, quarantine/drain per command.

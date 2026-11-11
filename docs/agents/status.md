@@ -1,5 +1,25 @@
 # Current evidence, gaps, and history
 
+**2026-11-11:** [Quatrième revue : noms, états et pièces](status-query-roles-2026-11-11.md).
+C6 est reproduit sur volets/lumières et corrigé par un parseur partagé sans modèle.
+184 tests ciblés, 943 locaux / 921 serveur et 40 requêtes Jeedom FR/EN passent,
+avec huit commandes exactes log-only et deux contrôles de file. Médianes de sept
+lectures/langue : 1,088 s FR / 1,073 s EN ; files 4,805 / 4,380 s. Le maximum EN
+augmente ; un passage ne prouve pas une non-régression statistique. Six réponses
+changent avec les valeurs Jeedom, correctement inconnues hors calibration fermée.
+Les sept défauts sont corrigés ; le quatrième cycle autorisé est terminé, sans
+autorisation de cinquième. Revue du nouveau head encore requise. [PR #5](https://github.com/kaneda-fr/Aria/pull/5).
+Services d’essai arrêtés, aucun audio réel ni déploiement ; réglages Piper inchangés.
+
+[Initial pilot](status-pilot-2026-11-10.md) and [private closed-only calibration](cover-calibration-2026-11-10.md)
+retain prior evidence. Two closed endpoints are configured; the third device's
+non-response is maintainer-confirmed expected. [Study](jeedom-status-semantics-2026-10-21.md)
+retains the broader proposed scope.
+
+**Historical October 21 deployment:** [Lighting evidence](light-questions-2026-10-21.md).
+The Mac mic/playback session expired; ESP32/Sonos were off. Its live setup must not
+be resumed from historical instructions. The current pilot uses no physical audio.
+
 **2026-10-20:** [Read/clarification/cache delivery and evidence](read-prefill-delivery-2026-10-20.md).
 
 **2026-10-19:** [Sentence voice routing](sentence-tts-2026-10-19.md) and acknowledged
@@ -8,21 +28,10 @@ interrupted waiters and propagate muted scheduling. Apollo: 242 targeted tests p
 Other UI/inventory/history/input-admission fixes remain separate. Audio is off;
 tools are log-only. Live-state entries below are historical.
 
-**Latest audio instruction — 2026-10-18:** the maintainer enabled Mac **playback only**
-and ESP32 input. Mac capture remains OFF. The playback-only listener attached to the
-current run and its readiness WAV completed successfully; LAN ingress was restored.
-Do not run generated-speech benchmarks while live playback/ingress is active: pause
-that path first or use non-audio analysis. This supersedes the prior all-audio-off
-instruction; tools stay log-only. See [playback-only operation](../../client/macos/README.md).
-**Latest [conversation/code review](conversation-regressions-2026-10-18.md):**
-four English replies used French TTS; two feedback-like turns lost their openings
-to ring overflow and entered history. Mac playback queued up to 9.7 seconds after
-WAV readiness. Rolling 12-message history coincides with 13.6–15.9-second prompt
-evaluation; weather was misrouted to device lookup. Recognition is active but
-uncertain. Analysis only; three mocked reproductions, no restart or runtime fixes.
-The earlier [prefix fix](feedback-prefix-2026-10-18.md) passed 324 Apollo tests but
-did not establish acoustic feedback reliability. Priorities: playback/input turns,
-language agreement, rolling history, tool purpose. Tools remain log-only.
+**Historical 2026-10-18 [conversation/code review](conversation-regressions-2026-10-18.md):**
+Wrong TTS languages, feedback/turn loss, delayed playback, history prefill and weather
+misrouting were reproduced. Recognition was active but uncertain. This was analysis,
+not deployment proof; subsequent dated evidence supersedes individual findings.
 [Name-matching evaluation](name-matching-options-2026-10-18.md) reviews Byname's
 aliases, Damerau corrections and WordNet vocabulary. Recommend model-free layers
 first; a read-only Apollo apostrophe-normalization probe recovered the failed name
@@ -43,17 +52,9 @@ correction has been added; inventory-derived recovery needs ambiguity evaluation
 The [earlier lookup investigation](freeform-lookup-2026-10-18.md) preserves template
 changes and their general-answer regressions; this follow-up does not erase them.
 
-Current isolated Apollo run is `20261018T145826Z-echo-prefix-01dafd`; the prior lookup
-reference remains `20261018T141513Z-lookup-fast-731426`. The compact monitor adds
-**Clear offline**, hiding disconnected clients until reconnect while preserving mute
-deadlines, session keys and accepted requests. UI filter reset, reconnect, mute/unmute
-and responsive layouts were verified with synthetic connections; no physical audio.
-Confirmed mute's earlier saved-voice/expiry evidence remains in its report below.
-The development service retains its three-hour lifetime (this start expires around
-19:58 Europe/Zurich); monitor autostart remains disabled, but it is running.
-A bounded thread heartbeat, `aria-apollo-validation`, schedules six half-hour follow-ups
-for targeted tests/fixes. Any later stop instruction overrides restart permission.
-See the [mute report](client-mute-2026-10-18.md) for precise evidence and limitations.
+Historical October 18 monitor/mute checks used isolated runs with bounded lifetimes.
+The six-follow-up automation is expired; do not extend it. Offline cleanup preserves
+mute deadlines, session keys and accepted requests. See [mute evidence](client-mute-2026-10-18.md).
 
 [Model residency fix](idle-residency-2026-10-18.md): Ollama requests now default to
 `keep_alive=-1` (`ARIA_LLM_KEEP_ALIVE_S`), retaining the model/cache without periodic

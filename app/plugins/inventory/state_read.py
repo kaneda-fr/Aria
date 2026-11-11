@@ -383,6 +383,9 @@ def select_read_commands(snapshot, query, metric=None, room=None, *, domain=None
 
 
 def render_state(result, language='en'):
+    if result.get('status_report'):
+        from .status_facts import render_status
+        return render_status(result['status_report'], language)
     fr = language == 'fr'
     status = result.get('status')
     if status == 'ambiguous':
@@ -486,6 +489,7 @@ class ReadOnlyInventory(InventoryProvider):
 
     async def read_state(self, args):
         import httpx
+        from .status_facts import capture_status_binding
         original = normalize(args.get('request_text', ''))
         if re.search(r'\b(demain|tomorrow|forecast|prevision|hier|yesterday|semaine|week|tonight|soir)\b', original):
             return {'success': False, 'status': 'unsupported_period'}
@@ -503,21 +507,38 @@ class ReadOnlyInventory(InventoryProvider):
         if selection['status'] != 'ready':
             return {'success': False, **selection}
         commands = selection['commands']
+        binding = capture_status_binding(snapshot, commands)
         try:
             response = await self.read_client.post('/read', json={'cmd_ids': [c.cmd_id for c in commands]})
             response.raise_for_status()
             result = response.json()
+            result = await self._revalidate_status_read(binding, result)
             result['requested_metric'] = metric
             result['metric_recovered'] = bool(explicit_metrics and normalize(metric or '') != normalize(args.get('metric') or ''))
         except (httpx.HTTPError, ValueError):
             return {'success': False, 'status': 'disconnected'}
         kinds = {c.cmd_id: metric_for(c) for c in commands}
-        for row in result.get('readings', []):
-            row['metric'] = kinds.get(row['cmd_id'])
+        result['readings']=[dict(row,metric=kinds[row['cmd_id']]) for row in result.get('readings',[])
+                            if row.get('cmd_id') in kinds]
+        if binding is not None:
+            from .status_facts import project_status
+            _, selected_channel=split_channel(entity_text(source['query']))
+            result['status_report']=project_status(self.indexer.get_snapshot(),binding['identities'],result,
+                binding['domain'],channel=selected_channel,
+                catalog_complete=getattr(self,'bridge_status',{}).get('catalog_complete',False),
+                catalog_version=getattr(self,'bridge_status',{}).get('catalog_version'))
         return result
 
     async def close_read_connection(self):
         await self.read_client.aclose()
+
+
+    async def _revalidate_status_read(self, binding, result):
+        if binding is None:return result
+        from .status_facts import guard_status_readings
+        await self.refresh_live_inventory(force=True)
+        return guard_status_readings(self.indexer.get_snapshot(),binding,result,
+            verified=getattr(self,'bridge_status',{}).get('connected') is not False)
 
     async def read_resolved_state(self, device_id, metric='state', channel=None, *, expected_identity=None):
         """Internal server plan: revalidate identity, then read info commands only.
@@ -527,6 +548,7 @@ class ReadOnlyInventory(InventoryProvider):
         """
         from dataclasses import replace
         import httpx
+        from .status_facts import capture_status_binding
         if not self.is_started:
             return {'success': False, 'status': 'unavailable'}
         await self.refresh_live_inventory(force=True)
@@ -547,14 +569,83 @@ class ReadOnlyInventory(InventoryProvider):
             commands = [c for c in commands if normalize(c.name).split()[-1:] == [str(channel)]]
         if not commands or len(commands) > 8 or any(c.type != 'info' for c in commands):
             return {'success': False, 'status': 'unsupported_metric'}
+        binding = capture_status_binding(snapshot, commands)
         try:
             response = await self.read_client.post('/read', json={'cmd_ids': [c.cmd_id for c in commands]})
             response.raise_for_status()
             result = response.json()
+            result = await self._revalidate_status_read(binding, result)
         except (httpx.HTTPError, ValueError):
             return {'success': False, 'status': 'disconnected'}
         kinds = {c.cmd_id: metric_for(c) for c in commands}
         result['readings'] = [dict(row, metric=kinds[row['cmd_id']])
                               for row in result.get('readings', []) if row.get('cmd_id') in kinds]
         result['requested_metric'] = metric
+        if metric=='state' and binding is not None:
+            from .status_facts import project_status
+            result['status_report']=project_status(self.indexer.get_snapshot(),binding['identities'],
+                result,binding['domain'],channel=channel,
+                catalog_complete=getattr(self,'bridge_status',{}).get('catalog_complete',False),
+                catalog_version=getattr(self,'bridge_status',{}).get('catalog_version'))
         return result
+
+    async def read_light_states(self, identities, channel=None):
+        """Read at most eight typed light-state IDs in one bridge request."""
+        import httpx
+        from .light_queries import light_state_commands
+        from .status_facts import capture_status_binding
+        if not self.is_started:
+            return {'success': False, 'status': 'unavailable'}
+        await self.refresh_live_inventory(force=True)
+        selection = light_state_commands(self.indexer.get_snapshot(), identities, channel)
+        if selection['status'] != 'ready':
+            return {'success': False, **selection}
+        commands = selection['commands']
+        if not commands:
+            return {'success': False, 'status': 'unavailable', 'readings': []}
+        binding = capture_status_binding(self.indexer.get_snapshot(), commands)
+        try:
+            response = await self.read_client.post('/read', json={'cmd_ids': [c.cmd_id for c in commands]})
+            response.raise_for_status()
+            result = response.json()
+            result = await self._revalidate_status_read(binding, result)
+        except (httpx.HTTPError, ValueError):
+            return {'success': False, 'status': 'disconnected', 'read_attempted': True}
+        allowed = {c.cmd_id for c in commands}
+        return {**result, 'read_attempted': True,
+                'readings': [dict(row, metric='state') for row in result.get('readings', [])
+                             if row.get('cmd_id') in allowed]}
+
+    async def read_status_states(self, identities, domain, channel=None):
+        """Read selected cover/light info only, within the existing bridge budget."""
+        import httpx
+        from .selection import matches_channel
+        from .status_facts import capture_status_binding
+        if not self.is_started or domain not in ('cover','light'):
+            return {'success':False,'status':'unavailable'}
+        if not identities or len(identities)>8:
+            return {'success':False,'status':'too_many'}
+        await self.refresh_live_inventory(force=True)
+        snapshot=self.indexer.get_snapshot()
+        cap='flap_state' if domain=='cover' else 'light_state'
+        commands=[]
+        for eq,name,room in identities:
+            device=snapshot.devices.get(eq)
+            if not device or not device.enabled or (device.name,device.room)!=(name,room):
+                return {'success':False,'status':'not_found'}
+            commands.extend(c for c in device.commands if c.type=='info' and c.capability==cap and
+                            (channel is None or matches_channel(c,channel)))
+        if len(commands)>8:return {'success':False,'status':'too_many'}
+        allowed={c.cmd_id for c in commands}
+        if not commands or len(allowed)!=len(commands):
+            return {'success':False,'status':'unavailable','readings':[]}
+        binding=capture_status_binding(snapshot,commands)
+        try:
+            response=await self.read_client.post('/read',json={'cmd_ids':[c.cmd_id for c in commands]})
+            response.raise_for_status()
+            result=response.json()
+            result=await self._revalidate_status_read(binding,result)
+        except (httpx.HTTPError,ValueError):
+            return {'success':False,'status':'disconnected','read_attempted':True}
+        return {**result,'read_attempted':True,
+                'readings':[dict(r,metric='state') for r in result.get('readings',[]) if r.get('cmd_id') in allowed]}

@@ -548,6 +548,8 @@ async def _process_request(app: FastAPI, job: AssistantRequest) -> dict[str, Any
     from app.llm.local_answers import LocalAnswer, clock_answer, capability_answer
     from app.llm.lookup_reply import render_lookup_results
     from app.plugins.inventory.read_requests import resolve_read_request, answer_read_request, read_syntax_language
+    from app.plugins.inventory.light_queries import resolve_light_query, answer_light_query
+    from app.plugins.inventory.cover_queries import resolve_cover_query, answer_cover_query
     from app.llm.history_prefill import cancel_prefill, schedule_prefill
 
     await cancel_prefill(app.state)
@@ -650,6 +652,32 @@ async def _process_request(app: FastAPI, job: AssistantRequest) -> dict[str, Any
         local_answer = clock_answer(text) or capability_answer(
             text, inventory_provider, actions_provider, tools_enabled=use_tools)
         read_language = read_syntax_language(text) or language
+        if (local_answer is None and use_tools and getattr(inventory_provider, 'is_started', False)
+                and getattr(inventory_provider, 'indexer', None) is not None):
+            lighting = resolve_light_query(text, inventory_provider.indexer.get_snapshot(), read_history,
+                                           spoken=job.source == 'voice', language=language)
+            if lighting is None:
+                lighting = resolve_cover_query(text, inventory_provider.indexer.get_snapshot(), read_history,
+                                               language=language)
+            if lighting is not None:
+                read_plan = lighting
+                responder = answer_cover_query if lighting.kind == 'cover_state' else answer_light_query
+                final_response, light_result = await responder(lighting, inventory_provider)
+                language = lighting.language
+                local_answer = LocalAnswer(final_response, language, 'lighting')
+                tool_calls_made = int(bool(light_result.get('read_attempted')))
+                memory = getattr(app.state, 'control_memory', None)
+                if memory is None:
+                    memory = app.state.control_memory = ControlMemory()
+                if lighting.device_id and light_result.get('success'):
+                    memory.remember((session_id, speaker_user), lighting.device_id)
+                else:
+                    memory.forget((session_id, speaker_user))
+                log.info('ARIA.Inventory.Lookup', extra={'fields': {
+                    'request_id': job.request_id, 'session_id': session_id, 'kind': lighting.kind,
+                    'status': lighting.status, 'device_id': lighting.device_id, 'metric': 'state',
+                    'match': lighting.match, 'result': light_result, 'language': language,
+                    'speech_recovered': lighting.speech_recovered, 'model_calls': 0}})
         if (local_answer is None and use_tools and callable(getattr(inventory_provider, 'read_state', None))
                 and getattr(inventory_provider, 'indexer', None) is not None
                 and measurement_request(text)

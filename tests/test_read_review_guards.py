@@ -108,3 +108,52 @@ def test_partial_timeout_only_quarantines_missing_command(cache):
     b.client.publish = fresh
     assert b.read(['11'], timeout=.01)['success']
     assert not b.read(['21'], timeout=.01)['success']
+
+
+def test_repeated_group_read_keeps_healthy_equipment_when_one_is_quarantined(cache):
+    b = bridge(cache); sent = []
+    def partial(topic, payload, qos, retain):
+        sent.append(topic)
+        if topic.endswith('/11'):
+            b.receive('jeedom/cmd/value/11', b'12.5', False)
+        return SimpleNamespace(rc=0)
+    b.client.publish = partial
+    first = b.read(['11', '21'], timeout=.01)
+    assert [r['status'] for r in first['readings']] == ['ok', 'unavailable']
+    for _ in range(3):
+        result = b.read(['11', '21'], timeout=.01)
+        assert result['success']
+        assert [r['status'] for r in result['readings']] == ['ok', 'unavailable']
+        assert result['readings'][0]['value'] == 12.5
+        assert result['readings'][1]['error'] == 'awaiting_previous_response'
+        assert 'value' not in result['readings'][1]
+    assert sent.count('jeedom/cmd/get/21') == 1
+    assert sent.count('jeedom/cmd/get/11') == 4
+
+
+def test_mixed_read_discards_late_value_before_fresh_retry(cache):
+    b = bridge(cache)
+    b.quarantined.add('21')
+    def publish(topic, payload, qos, retain):
+        b.receive('jeedom/cmd/value/21', b'99', False)
+        b.receive('jeedom/cmd/value/11', b'12.5', False)
+        return SimpleNamespace(rc=0)
+    b.client.publish = publish
+    result = b.read(['11', '21'], timeout=.01)
+    assert result['success']
+    assert [r['status'] for r in result['readings']] == ['ok', 'unavailable']
+    assert 'value' not in result['readings'][1]
+    assert '21' not in b.quarantined
+    b.client.publish = lambda *args, **kwargs: (b.receive('jeedom/cmd/value/21', b'13', False) or SimpleNamespace(rc=0))
+    assert b.read(['21'], timeout=.01)['readings'][0]['value'] == 13
+
+
+def test_all_quarantined_read_retains_requested_unknown_rows_without_publish(cache):
+    b = bridge(cache);b.quarantined.add('11');sent=[]
+    b.client.publish = lambda *args, **kwargs: sent.append(args[0])
+    result=b.read(['11'],timeout=.01)
+    assert not result['success'] and result['status']=='awaiting_previous_response'
+    assert len(result['readings'])==1 and result['readings'][0]['cmd_id']=='11'
+    assert result['readings'][0]['status']=='unavailable'
+    assert result['readings'][0]['error']=='awaiting_previous_response'
+    assert not sent
