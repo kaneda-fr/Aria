@@ -145,28 +145,28 @@ def resolve_light_query(text, snapshot, history=(), *, spoken=False, language='f
     if not re.search(r'\b(?:room|piece)\b', raw):
         key=re.sub(r'\b(?:a la maison|dans la maison|at home|in the house|around the house|chez moi)\b', ' ', key)
         key=' '.join(key.split())
-    mentions=[(s,e,k) for k,d in devices.items() for form in _device_forms(d.name)
-              if set(form.split())-{'light'} for s,e in _spans(key,form)]
-    mentions=[(s,e,k) for s,e,k in mentions if not any(s>=a and e<=b and (s,e)!=(a,b) for a,b,_ in mentions)]
+    from .query_roles import status_query_scope
+    key,mentions,ignored,room,ambiguous_scope,operator_text=status_query_scope(raw,devices,domain='light',key=key,listing=bool(LIST.search(raw)))
     if short_choice:mentions=[]
     nonlight=any(d.enabled and not is_light(d) and contains(key,_form(d.name))
                  for d in snapshot.devices.values())
     if nonlight and not has_type:return None
-    count=bool(COUNT.search(raw))
-    # Within list framing, selected equipment names are not state predicates.
-    state_text=_without(key,[(s,e) for s,e,_ in mentions]) if LIST.search(raw) else raw
+    count=bool(COUNT.search(operator_text) or re.match(r'^count\b',operator_text))
+    operator_words=set(operator_text.split())
+    state_text=_without(key,[(s,e) for s,e,_ in mentions]+ignored)
     state_words=set(state_text.split())
     kind=('light_capabilities' if CAPABILITY.search(raw) else
           'light_state' if STATE.search(state_text) else
           'light_list' if count or LIST.search(raw) or re.search(r'\b(?:quelles sont|quels sont|what lights|what lamps)\b',raw) or framed else None)
+    if ambiguous_scope and has_type:kind='light_state'
     ordinal=next((ORDINAL[w] for w in words if w in ORDINAL),None)
     if context and not has_type and not mentions:
         # A prior lighting answer is not evidence that every new question is
         # about lights. Keep only state/count ellipses, choices and locations.
         channel_reference = bool(re.search(r'\b(?:channel|canal|voie)\s+[1-9][0-9]*\b', key))
-        reference_key = re.sub(r'\b(?:channel|canal|voie)\s+[1-9][0-9]*\b', '', key)
+        reference_key = re.sub(r'\b(?:channel|canal|voie)\s+[1-9][0-9]*\b', '', _without(key,ignored))
         remainder = set(reference_key.split()) - SYNTAX - set(ORDINAL)
-        short_reference = not remainder and (kind is not None or ordinal is not None or channel_reference)
+        short_reference = not remainder and (kind is not None or ordinal is not None or channel_reference or room is not None)
         inventory_reference = bool(remainder) and any(
             remainder <= set(_form(d.name+' '+d.room).split()) for d in devices.values())
         if not (short_reference or inventory_reference):
@@ -185,19 +185,21 @@ def resolve_light_query(text, snapshot, history=(), *, spoken=False, language='f
                           speech_recovered=recovered,count=count,**kw)
     if NO_READ.search(raw) or (framed and words & {'no','none','aucun','aucune'}):return plan('no_read')
     if PERIOD.search(raw) or COMPLEX.search(raw):return plan('unsupported')
+    if ambiguous_scope:return plan('ambiguous_location')
     if nonlight:return plan('not_found')
     # Only state questions use these predicates; no write path exists in this module.
     on=bool(state_words & {'on','allume','allumee','allumes','allumees','lit','active','actives','actifs','marche'})
     off=bool(state_words & {'off','eteint','eteinte','eteints','eteintes'})
     wanted='on' if on and not off else 'off' if off and not on else None
     if words & {'pas','not','jamais','never'} and not NO_READ.search(raw):return plan('unsupported')
-    quantifier=('all' if words & {'all','toutes','tous','toute','tout','eclairage','lighting'} else
-                'any' if words & {'any','reste','encore','still'} or 'y a' in raw or 'there' in words else None)
+    quantifier=('all' if operator_words & {'all','toutes','tous','toute','tout','eclairage','lighting'} else
+                'any' if operator_words & {'any','reste','encore','still'} or 'y a' in operator_text or 'there' in operator_words else None)
     channels=list(re.finditer(r'\b(?:channel|canal|voie)\s+([1-9][0-9]*)\b',key))
     if len(channels)>1:return plan('ambiguous')
     channel=int(channels[0].group(1)) if channels else None
-    rest=_without(key,[(s,e) for s,e,_ in mentions]+[(m.start(),m.end()) for m in channels])
-    selectors=set(rest.split())-SYNTAX-set(ORDINAL)
+    rest=_without(key,[(s,e) for s,e,_ in mentions]+ignored+[(m.start(),m.end()) for m in channels])
+    selectors=set(rest.split())-SYNTAX-set(ORDINAL)-{'called'}
+    if count:selectors-={'combien','how','many','nombre','number','count'}
     # Relative-clause syntax, not a globally ignored location/name token.
     relative_target=(re.search(r'\blight that are\b',key) or
                      any(re.match(r'\s+that are\b',key[e:]) for _,e,_ in mentions))
@@ -217,10 +219,11 @@ def resolve_light_query(text, snapshot, history=(), *, spoken=False, language='f
         chosen=offered[ordinal][0];candidates=[devices[chosen]] if chosen in devices else []
     elif selectors:
         candidates=[d for d in candidates if selectors<=set(_form(d.name+' '+d.room).split())]
-    elif context and not has_type and not mentions:
+    elif context and not has_type and not mentions and room is None:
         candidates=[devices[i] for i,_,_ in context.targets if i in devices]
         if wanted is None:wanted=context.wanted
         if channel is None:channel=context.channel
+    if room is not None:candidates=[d for d in candidates if _form(d.room)==room]
     candidates.sort(key=lambda d:d.eq_id)
     if not candidates:return plan('not_found',channel=channel,wanted=wanted,quantifier=quantifier)
     if len(candidates)==1 and mentions and not recovered and not count and not context:
@@ -230,7 +233,8 @@ def resolve_light_query(text, snapshot, history=(), *, spoken=False, language='f
         if (existing is not None and existing.status == 'ready' and
                 (channel is None or any(matches_channel(c, channel) for c in candidates[0].commands if c.capability == 'light_state'))):
             return None
-    plural=bool(words & (PLURAL|{'all','tous','toutes','eclairage','lighting','there'})) or kind=='light_list' or count
+    room_followup=bool(room is not None and context and context.status=='ready' and not has_type and not mentions and re.match(r'^(?:et|and)\b',raw))
+    plural=bool(words & (PLURAL|{'all','tous','toutes','eclairage','lighting','there'})) or kind=='light_list' or count or room_followup
     if len(candidates)>1 and not plural and not (context and context.status=='ready' and len(context.targets)>1 and not has_type and not mentions):
         return plan('ambiguous',candidates,channel=channel,wanted=wanted,quantifier=quantifier)
     return plan('ready',candidates,channel=channel,wanted=wanted,quantifier=quantifier)

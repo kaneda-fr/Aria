@@ -5,11 +5,15 @@ from .light_queries import LightQuery, ORDINAL, READ_FRAME
 from .read_requests import (PREFIX, FRAME, NO_READ, PERIOD, COMPLEX, CAPABILITY,
                             _form, _device_forms, _spans, _without, read_syntax_language)
 from .selection import DOMAINS, normalize
+from .query_roles import status_query_scope
 
 
 def is_cover(device):
     return device.enabled and (device.domain in ('cover','opening') or any(
         (c.capability or '').startswith('flap_') for c in device.commands))
+
+
+
 
 
 def resolve_cover_query(text, snapshot, history=(), *, language='fr', _depth=0):
@@ -40,37 +44,32 @@ def resolve_cover_query(text, snapshot, history=(), *, language='fr', _depth=0):
                     context=LightQuery('cover_state','ready' if unique else 'ambiguous',
                         tuple((d.eq_id,d.name,d.room) for d in recovered),
                         'en' if 'Shutters:' in reply['content'] else 'fr',match='cover_inventory')
-    native=any(normalize(d.name) and f' {normalize(d.name)} ' in f' {raw} ' for d in devices.values())
-    def adverb(match):
-        location=re.search(r'\b(?:room|piece|in|at|dans|en|de|du|au|from|near|named|nomme)\s+$',raw[:match.start()])
-        return match[0] if location else ''
-    predicate=raw if native else re.sub(
-        r'\b(?:still|currently|already)\s+(?=(?:open|closed)\b)',adverb,raw)
-    key=_form(predicate)
-    mentions=[(s,e,k) for k,d in devices.items() for f in _device_forms(d.name)
-              if set(f.split())-{'flap'} for s,e in _spans(key,f)]
-    mentions=[(s,e,k) for s,e,k in mentions if not any(s>=a and e<=b and (s,e)!=(a,b) for a,b,_ in mentions)]
-    state=bool(re.search(r'\b(?:etat|etats|statut|status|state|states|position|positions|ouverts?|ouvertes?|fermes?|fermees?|open|closed)\b',raw))
-    if not (has_type or mentions or context) or not (state or context):return None
-    language=read_syntax_language(raw) or ('en' if words & {'open','closed','my','our','their','and','second'} else
+    key,mentions,ignored,room,ambiguous_scope,operator_text=status_query_scope(raw,devices)
+    state_text=_without(key,[(s,e) for s,e,_ in mentions]+ignored)
+    state_words=set(state_text.split())
+    state=bool(re.search(r'\b(?:etat|etats|statut|status|state|states|position|positions|ouverts?|ouvertes?|fermes?|fermees?|open|closed)\b',state_text))
+    if not (has_type or mentions or context) or not (state or context or ambiguous_scope):return None
+    language=read_syntax_language(state_text) or ('en' if state_words & {'open','closed','my','our','their','and','second'} else
                                          context.language if context else language)
     def plan(status,targets=(),**kw):
         return LightQuery('cover_state',status,tuple((d.eq_id,d.name,d.room) for d in targets),language,
                           match='cover_inventory',**kw)
     if NO_READ.search(raw):return plan('no_read')
     if PERIOD.search(raw) or COMPLEX.search(raw) or words & {'not','pas','jamais','never'}:return plan('unsupported')
-    state_words=set(_without(key,[(s,e) for s,e,_ in mentions]).split())
+    if ambiguous_scope:return plan('ambiguous_location')
     opened=bool(state_words & {'open','ouvert','ouverte','ouverts','ouvertes'})
     closed=bool(state_words & {'closed','ferme','fermee','fermes','fermees'})
     wanted='open' if opened and not closed else 'closed' if closed and not opened else None
-    count=bool(re.search(r'\b(?:combien|how many)\b',raw))
-    quantifier='all' if words & {'tous','toutes','all'} else 'any' if words & {'any','encore','reste','there'} else None
+    count=bool(re.search(r'\b(?:combien|how many|nombre de|number of)\b|^count\b',operator_text))
+    operator_words=set(operator_text.split())
+    quantifier='all' if operator_words & {'tous','toutes','all'} else 'any' if operator_words & {'any','encore','reste','there'} else None
     channel_matches=list(re.finditer(r'\b(?:channel|canal|voie)\s+([1-9][0-9]*)\b',key))
     if len(channel_matches)>1:return plan('ambiguous')
     channel=int(channel_matches[0][1]) if channel_matches else None
-    rest=_without(key,[(s,e) for s,e,_ in mentions]+[(m.start(),m.end()) for m in channel_matches])
+    rest=_without(key,[(s,e) for s,e,_ in mentions]+ignored+[(m.start(),m.end()) for m in channel_matches])
     syntax=set(_form(' '.join(FRAME)).split())|set('flap etats states position positions mes mon ma nos notre my our your leur leurs ils elles il elle it its et and tous toutes all any encore reste y t a ai je have i do does maison home house chez ou or ouvert ouverte ouverts ouvertes ferme fermee fermes fermees open closed le la les one deuxieme second premier premiere first'.split())
-    selectors=set(rest.split())-syntax-set(ORDINAL)
+    selectors=set(rest.split())-syntax-set(ORDINAL)-{'called'}
+    if count:selectors-={'combien','how','many','nombre','number','count'}
     ordinal=next((ORDINAL[w] for w in words if w in ORDINAL),None)
     # Only adjacent choices/locations/state ellipses inherit scope. Other domains defer.
     if context and not has_type and not mentions:
@@ -88,13 +87,14 @@ def resolve_cover_query(text, snapshot, history=(), *, language='fr', _depth=0):
         candidates=[devices[offered[ordinal][0]]] if offered[ordinal][0] in devices else []
     elif selectors:
         candidates=[d for d in candidates if selectors<=set(_form(d.name+' '+d.room).split())]
-    elif context and not has_type and not mentions:
+    elif context and not has_type and not mentions and room is None:
         candidates=[devices[k] for k,_,_ in context.targets if k in devices]
+    if room is not None:candidates=[d for d in candidates if _form(d.room)==room]
     candidates.sort(key=lambda d:d.eq_id)
     if not candidates:return plan('not_found')
-    room_followup=bool(context and context.status=='ready' and not has_type and selectors
-                       and re.match(r'^(?:et|and)\b',raw) and
-                       any(selectors<=set(_form(d.room).split()) for d in candidates))
+    room_followup=bool(context and context.status=='ready' and not has_type and
+                       (selectors or room is not None) and re.match(r'^(?:et|and)\b',raw) and
+                       (room is not None or any(selectors<=set(_form(d.room).split()) for d in candidates)))
     plural=bool(words & {'volets','stores','shutters','blinds','tous','toutes','all','any'}) or count or room_followup
     if len(candidates)>1 and not plural and not (context and len(context.targets)>1 and context.status=='ready'):
         return plan('ambiguous',candidates)

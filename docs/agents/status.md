@@ -1,16 +1,15 @@
 # Current evidence, gaps, and history
 
-**2026-11-11:** [Latest cover-name review/fix](status-cover-name-review-2026-11-11.md),
-[prior full Jeedom/TTS evidence](status-live-and-tts-2026-11-11.md),
-[PR #5 and review reports](https://github.com/kaneda-fr/Aria/pull/5).
-C5 is reproduced/fixed: equipment names are excluded from cover-state predicates.
-873 local / 851 server tests and ten targeted FR/EN real requests pass; eight common
-replies stay identical. Two queue checks pass at 4.802 / 4.434 s. Prior full campaign:
-40 requests and eight log-only commands before C5. Limits and single-run latency
-comparisons remain explicit. The six findings are fixed; a review of the latest
-correction is still required, and the three-cycle automatic-review cap is reached.
-No fourth review is authorized yet. Test services stopped, tools log-only,
-no real audio or production deployment. Piper/prefill defaults remain unchanged.
+**2026-11-11:** [Quatrième revue : noms, états et pièces](status-query-roles-2026-11-11.md).
+C6 est reproduit sur volets/lumières et corrigé par un parseur partagé sans modèle.
+184 tests ciblés, 943 locaux / 921 serveur et 40 requêtes Jeedom FR/EN passent,
+avec huit commandes exactes log-only et deux contrôles de file. Médianes de sept
+lectures/langue : 1,088 s FR / 1,073 s EN ; files 4,805 / 4,380 s. Le maximum EN
+augmente ; un passage ne prouve pas une non-régression statistique. Six réponses
+changent avec les valeurs Jeedom, correctement inconnues hors calibration fermée.
+Les sept défauts sont corrigés ; le quatrième cycle autorisé est terminé, sans
+autorisation de cinquième. Revue du nouveau head encore requise. [PR #5](https://github.com/kaneda-fr/Aria/pull/5).
+Services d’essai arrêtés, aucun audio réel ni déploiement ; réglages Piper inchangés.
 
 [Initial pilot](status-pilot-2026-11-10.md) and [private closed-only calibration](cover-calibration-2026-11-10.md)
 retain prior evidence. Two closed endpoints are configured; the third device's

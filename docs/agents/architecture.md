@@ -211,10 +211,9 @@ the live log viewport, with compact status/metrics and expandable help.
 
 [Read/clarification and cache paths](read-prefill-delivery-2026-10-20.md).
 
-[Lighting questions](light-questions-2026-10-21.md) use inventory selection, strict
-room/channel filters and same-speaker follow-ups. [Typed status facts](status-pilot-2026-11-10.md)
-add covers and everyday FR/EN replies. Identity-bound mappings interpret polarity;
-missing data stay unknown. Reads use at most eight info IDs, with no new model or
-action authority. [Read safeguards](status-live-and-tts-2026-11-11.md) revalidate
-frozen definitions after receipt, require observation identity and preserve uncertainty
-for incomplete inventories. Quarantine is per command; late replies are drained.
+[Lighting questions](light-questions-2026-10-21.md) and [typed status facts](status-pilot-2026-11-10.md)
+use strict room/channel scope, identity-bound mappings and at most eight info IDs.
+[Shared query roles](status-query-roles-2026-11-11.md), `inventory/query_roles.py`,
+separate names, predicates and literal rooms; ambiguous scope asks before reading.
+[Read guards](status-live-and-tts-2026-11-11.md) revalidate frozen definitions and
+observation identity, preserve incomplete coverage, quarantine/drain per command.

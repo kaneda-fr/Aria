@@ -236,3 +236,5 @@ cette tâche ne déploie pas le service de production.
 
 Suite à la troisième revue, voir la [correction C5 des noms de volets](status-cover-name-review-2026-11-11.md)
 pour la validation du build suivant ; les 40 cas ci-dessus précèdent cette correction.
+
+Suite : [quatrième revue et validation partagée C6](status-query-roles-2026-11-11.md).

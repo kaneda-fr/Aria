@@ -52,14 +52,9 @@ publications MQTT info-get sur le pont réel. Le paquet est reconstruit et ne
 contient pas de configuration privée. Les services d’essai sont arrêtés après
 collecte ; aucun micro/haut-parleur réel ni action d’équipement.
 
-## Livraison
+## Livraison et suite
 
-Le correctif est destiné à la PR existante. Les trois cycles automatiques sont
-terminés ; la revue du head corrigé reste une condition de préparation à la fusion.
-Le workflow limite les cycles automatiques à trois et requiert une instruction
-explicite pour en lancer un quatrième. Aucun quatrième cycle n’est demandé par
-cette validation. Les [rapports de la PR](https://github.com/kaneda-fr/Aria/pull/5)
-portent la décision courante, les six défauts et leurs validations.
-La fusion et le déploiement de production restent en attente ; l’audio réel est
-arrêté. Les faits de la campagne ne prouvent pas l’acoustique, la reconnaissance
-réelle d’une personne ou l’achèvement physique d’une commande.
+Le quatrième cycle a été autorisé après ce résultat et a révélé C6, distinct de C5.
+Voir la [correction partagée et les 40 nouveaux cas](status-query-roles-2026-11-11.md).
+Les rapports de la [PR #5](https://github.com/kaneda-fr/Aria/pull/5) portent la décision
+courante. Fusion/déploiement restent en attente ; aucun audio réel autorisé.
