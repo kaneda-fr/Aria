@@ -233,3 +233,6 @@ info-get uniquement. Tous les services d’essai sont arrêtés après collecte 
 micro, haut-parleur physique ou mouvement d’équipement. La [PR et ses rapports de
 revue](https://github.com/kaneda-fr/Aria/pull/5) portent le statut de livraison courant ;
 cette tâche ne déploie pas le service de production.
+
+Suite à la troisième revue, voir la [correction C5 des noms de volets](status-cover-name-review-2026-11-11.md)
+pour la validation du build suivant ; les 40 cas ci-dessus précèdent cette correction.

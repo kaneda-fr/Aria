@@ -1,15 +1,16 @@
 # Current evidence, gaps, and history
 
-**2026-11-11:** [Real Jeedom/TTS evidence](status-live-and-tts-2026-11-11.md),
+**2026-11-11:** [Latest cover-name review/fix](status-cover-name-review-2026-11-11.md),
+[prior full Jeedom/TTS evidence](status-live-and-tts-2026-11-11.md),
 [PR #5 and review reports](https://github.com/kaneda-fr/Aria/pull/5).
-Final: 40 FR/EN requests, eight log-only commands, two queue checks pass;
-865 local / 843 server tests pass. Guards protect changed clarification offers,
-observation identity, incomplete catalogs, definition races and state/list predicates
-without treating equipment names as predicates. Final voices/facts/filters pass;
-earlier false language-oracle flags remain disclosed. Matched read medians:
-1.092 s FR / 1.140 s EN; queues 4.824 / 4.483 s. Single runs are not an SLO.
-Piper/prefill trade-off remains; defaults unchanged. Test services stopped,
-no physical audio or production deployment. PR reports carry current review status.
+C5 is reproduced/fixed: equipment names are excluded from cover-state predicates.
+873 local / 851 server tests and ten targeted FR/EN real requests pass; eight common
+replies stay identical. Two queue checks pass at 4.802 / 4.434 s. Prior full campaign:
+40 requests and eight log-only commands before C5. Limits and single-run latency
+comparisons remain explicit. The six findings are fixed; a review of the latest
+correction is still required, and the three-cycle automatic-review cap is reached.
+No fourth review is authorized yet. Test services stopped, tools log-only,
+no real audio or production deployment. Piper/prefill defaults remain unchanged.
 
 [Initial pilot](status-pilot-2026-11-10.md) and [private closed-only calibration](cover-calibration-2026-11-10.md)
 retain prior evidence. Two closed endpoints are configured; the third device's

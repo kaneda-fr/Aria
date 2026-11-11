@@ -59,8 +59,9 @@ def resolve_cover_query(text, snapshot, history=(), *, language='fr', _depth=0):
                           match='cover_inventory',**kw)
     if NO_READ.search(raw):return plan('no_read')
     if PERIOD.search(raw) or COMPLEX.search(raw) or words & {'not','pas','jamais','never'}:return plan('unsupported')
-    opened=bool(words & {'open','ouvert','ouverte','ouverts','ouvertes'})
-    closed=bool(words & {'closed','ferme','fermee','fermes','fermees'})
+    state_words=set(_without(key,[(s,e) for s,e,_ in mentions]).split())
+    opened=bool(state_words & {'open','ouvert','ouverte','ouverts','ouvertes'})
+    closed=bool(state_words & {'closed','ferme','fermee','fermes','fermees'})
     wanted='open' if opened and not closed else 'closed' if closed and not opened else None
     count=bool(re.search(r'\b(?:combien|how many)\b',raw))
     quantifier='all' if words & {'tous','toutes','all'} else 'any' if words & {'any','encore','reste','there'} else None

@@ -63,6 +63,38 @@ async def test_unknown_cover_mapping_is_not_spoken_as_closed(cover_server,monkey
     assert 'fermé' not in r['response']
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize('language',['fr','en'])
+@pytest.mark.parametrize('name',['Open','Closed','Ouvert','Fermé'])
+async def test_cover_name_state_words_do_not_filter_status(cover_server,tmp_path,monkeypatch,language,name):
+    from app.plugins.inventory.cover_queries import resolve_cover_query
+    from app.plugins.inventory.status_facts import command_identity
+    provider=cover_server[2]
+    device=replace(provider.indexer.get_device('90'),name='Volet '+name)
+    provider.indexer.add_device(device)
+    command=device.commands[0]
+    path=tmp_path/'named-cover-map.json'
+    path.write_text(json.dumps({'schema':'aria.status-map/1','mappings':{device.source+':'+command.cmd_id:{
+        'identity':command_identity(device,command),'closed_value':0,'open_value':100}}}))
+    monkeypatch.setenv('ARIA_STATUS_MAP_FILE',str(path))
+    text=('Quel est le statut du volet '+name+' ?' if language=='fr' else
+          'What is the status of the shutter '+name+'?')
+    query=resolve_cover_query(text,provider.indexer.get_snapshot(),language=language)
+    assert query is not None and query.status=='ready' and query.wanted is None
+    result=await ask(cover_server,text)
+    assert result['success'] and cover_server[3]==[['901']]
+    assert device.name in result['response']
+    assert ('fermé' if language=='fr' else 'closed') in result['response']
+    cover_server[5].assert_not_called()
+    opened=name in ('Open','Ouvert')
+    state=('fermé' if opened else 'ouvert') if language=='fr' else ('closed' if opened else 'open')
+    explicit=('Le volet '+name+' est-il '+state+' ?' if language=='fr' else
+              'Is the shutter '+name+' '+state+'?')
+    query=resolve_cover_query(explicit,provider.indexer.get_snapshot(),language=language)
+    assert query is not None and query.status=='ready'
+    assert query.wanted==('closed' if opened else 'open')
+
+
 def test_actions_explanations_negatives_and_other_domain_are_not_cover_reads(cover_server=None):
     from app.plugins.inventory.cover_queries import resolve_cover_query
     s,_,_=fixture('cover',(0,),unit='%')
