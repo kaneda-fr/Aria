@@ -1,14 +1,15 @@
 # Current evidence, gaps, and history
 
-**2026-11-11 — real Jeedom validation and TTS isolation:** [Results](status-live-and-tts-2026-11-11.md).
-[PR #5](https://github.com/kaneda-fr/Aria/pull/5): 34 FR/EN real-read cases verified,
-with clarification/resumption and eight log-only commands; language-oracle false flags
-are retained and independently audited in the report. Per-command quarantine now preserves healthy devices in repeated group reads.
-852 local / 830 server tests pass. Review fixes protect ordinal choices, explicit
-observation identity, incomplete-catalog claims and post-read definition changes. The English TTS spike is reproduced and isolated
-mainly to Piper under prefill; disabling prefill hurts the preceding model turn,
-so defaults remain. All test units stopped, no physical audio or live deployment.
-The attached `codex/lights-questions` worktree contains the changes for PR review.
+**2026-11-11:** [Real Jeedom/TTS evidence](status-live-and-tts-2026-11-11.md),
+[PR #5 and review reports](https://github.com/kaneda-fr/Aria/pull/5).
+Final: 40 FR/EN requests, eight log-only commands, two queue checks pass;
+865 local / 843 server tests pass. Guards protect changed clarification offers,
+observation identity, incomplete catalogs, definition races and state/list predicates
+without treating equipment names as predicates. Final voices/facts/filters pass;
+earlier false language-oracle flags remain disclosed. Matched read medians:
+1.092 s FR / 1.140 s EN; queues 4.824 / 4.483 s. Single runs are not an SLO.
+Piper/prefill trade-off remains; defaults unchanged. Test services stopped,
+no physical audio or production deployment. PR reports carry current review status.
 
 [Initial pilot](status-pilot-2026-11-10.md) and [private closed-only calibration](cover-calibration-2026-11-10.md)
 retain prior evidence. Two closed endpoints are configured; the third device's

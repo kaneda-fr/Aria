@@ -110,6 +110,61 @@ async def test_light_enumeration_needs_no_state_read(lights_server,text):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('text,wanted',[
+    ('Liste les lumières allumées.', 'on'),
+    ('Liste les lumières éteintes.', 'off'),
+    ('List the lights that are on.', 'on'),
+    ('List the lights that are off.', 'off'),
+    ('Liste le statut des lumières.', None),
+    ('List the state of my lights.', None),
+])
+async def test_list_framing_with_state_predicate_reads_and_filters(lights_server,text,wanted):
+    from app.plugins.inventory.light_queries import resolve_light_query
+    provider=lights_server[2]
+    query=resolve_light_query(text,provider.indexer.get_snapshot())
+    assert query is not None and query.kind=='light_state'
+    assert query.wanted==wanted
+    result=await ask(lights_server,text)
+    assert result['success'],result
+    assert lights_server[3]==[['101','102','301','401','701','801']]
+    assert 'available' not in result['response'] and 'équipements disponibles' not in result['response']
+    if wanted=='off':assert 'Lampe Canapé' not in result['response']
+    else:assert 'Lampe Canapé' in result['response']
+    lights_server[5].assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('text',[
+    'List the lights that are on in the nonexistent room.',
+    'List the lights in That that are on.',
+    'Liste les lumières éteintes dans la pièce inconnue.',
+])
+async def test_state_lists_preserve_unknown_location_qualifiers(lights_server,text):
+    result=await ask(lights_server,text)
+    assert result['response'] and not lights_server[3]
+    lights_server[5].assert_not_called()
+
+
+@pytest.mark.parametrize('name,text,predicate',[
+    ('On','List the lights named On.','off'),
+    ('Off','List the lights named Off.','on'),
+    ('Allumée','Liste la lumière Allumée.','eteinte'),
+    ('Éteinte','Liste la lumière Éteinte.','allumee'),
+])
+def test_list_state_words_in_equipment_names_are_not_predicates(name,text,predicate):
+    from app.plugins.inventory.light_queries import resolve_light_query
+    device=SimpleNamespace(eq_id='named',name=name,room='',domain='light',enabled=True,
+        commands=[SimpleNamespace(cmd_id='named-state',device_id='named',type='info',capability='light_state',name='Etat')])
+    snapshot=SimpleNamespace(devices={'named':device})
+    query=resolve_light_query(text,snapshot)
+    assert query is not None and query.kind=='light_list' and query.status=='ready'
+    state_text=text.rstrip('.')+(' that are ' if name in ('On','Off') else ' qui est ')+predicate+'.'
+    query=resolve_light_query(state_text,snapshot)
+    assert query is not None and query.kind=='light_state' and query.status=='ready'
+    assert query.wanted==('on' if predicate in ('on','allumee') else 'off')
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize('text',[
     'Quel est le statut des lumières du bureau ?', 'Les lumières du bureau sont-elles allumées ?',
     'Le bureau est allumé.', 'Is the office light on?', 'Status of lights in RDC.',

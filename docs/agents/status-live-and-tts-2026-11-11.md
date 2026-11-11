@@ -184,3 +184,52 @@ ces protections ; ses réponses étaient identiques à sa référence. Il ne fau
 lire cette comparaison comme une promesse d’égalité textuelle après les corrections
 sémantiques. La [PR #5](https://github.com/kaneda-fr/Aria/pull/5) contient le pilote et
 ces protections ; une revue sur le head corrigé est requise avant de conclure.
+
+## Deuxième revue : liste demandant un état
+
+Copilot (`5851271634`, head `2f9c066`) a signalé un défaut valide :
+le cadrage « liste » pouvait gagner sur un prédicat allumé/éteint/statut et
+renvoyer l’inventaire sans lire l’état. Six variantes FR/EN échouent avant correction.
+La demande d’état est maintenant prioritaire ; une liste sans prédicat reste une
+énumération sans I/O. Les noms d’équipements contenant un mot d’état (« On »,
+« Allumée », etc.) ne sont pas des prédicats : quatre cas de régression
+supplémentaires échouent sur la première correction, puis passent.
+La proposition relative anglaise après le type ou un nom sélectionné est reconnue
+sans ignorer globalement « that » dans les noms ou lieux. Trois tests gardent les
+qualificatifs de lieux inconnus.
+
+Validation finale : **113 tests ciblés, 865 tests locaux et 843 tests serveur
+passent**. Les 22 cas spécifiques au client Mac sont exécutés avec mocks localement.
+Le paquet contient exactement les cinq modules de lecture/statuts vérifiés, sans
+configuration privée. GitNexus : impact amont du résolveur faible, appelant direct
+`_process_request`, worker partagé ; changement détecté de risque moyen sur quatre flux.
+
+Deux campagnes réelles de 40 requêtes FR/EN passent : 22 lectures aux IDs exacts,
+huit commandes log-only, quatre couples clarification/reprise, quatre questions
+générales et deux énumérations sans lecture. Les quatre nouvelles listes filtrées
+lisent l’état, respectent le prédicat et n’utilisent pas le modèle.
+La dernière campagne reprend la protection des noms : **40/40 réponses identiques**
+à la précédente, aucune anomalie brute ou après audit indépendant de la langue,
+de la voix, des valeurs et du filtrage. Les deux contrôles de file passent.
+
+| Groupe comparable (7 lectures/langue) | Candidat avant garde des noms | Final |
+| --- | ---: | ---: |
+| FR médiane requête → premier WAV | 1,077 s | 1,092 s |
+| FR maximum | 1,332 s | 1,335 s |
+| EN médiane requête → premier WAV | 1,118 s | 1,140 s |
+| EN maximum | 1,319 s | 1,236 s |
+| File FR | 4,787 s | 4,824 s |
+| File EN | 4,398 s | 4,483 s |
+
+Par rapport à la campagne de 34 cas après les premières corrections, les médianes
+du même groupe sont 0,997 → 1,092 s FR et 1,182 → 1,140 s EN. Ces passages uniques
+ne prouvent pas une absence de régression statistique ; aucun gain uniforme n’est
+revendiqué. Le diagnostic Piper/préchargement antérieur reste ouvert et les réglages
+du modèle, de l’historique et du TTS restent identiques.
+
+Audit final : 46 admissions/46 issues terminales, deux rejets de surcharge attendus,
+42 destinations réseau d’inférence observées toutes loopback, publications du pont
+info-get uniquement. Tous les services d’essai sont arrêtés après collecte ; aucun
+micro, haut-parleur physique ou mouvement d’équipement. La [PR et ses rapports de
+revue](https://github.com/kaneda-fr/Aria/pull/5) portent le statut de livraison courant ;
+cette tâche ne déploie pas le service de production.

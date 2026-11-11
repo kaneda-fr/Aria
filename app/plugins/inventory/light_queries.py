@@ -153,8 +153,11 @@ def resolve_light_query(text, snapshot, history=(), *, spoken=False, language='f
                  for d in snapshot.devices.values())
     if nonlight and not has_type:return None
     count=bool(COUNT.search(raw))
+    # Within list framing, selected equipment names are not state predicates.
+    state_text=_without(key,[(s,e) for s,e,_ in mentions]) if LIST.search(raw) else raw
+    state_words=set(state_text.split())
     kind=('light_capabilities' if CAPABILITY.search(raw) else
-          'light_state' if STATE.search(raw) and not LIST.search(raw) else
+          'light_state' if STATE.search(state_text) else
           'light_list' if count or LIST.search(raw) or re.search(r'\b(?:quelles sont|quels sont|what lights|what lamps)\b',raw) or framed else None)
     ordinal=next((ORDINAL[w] for w in words if w in ORDINAL),None)
     if context and not has_type and not mentions:
@@ -184,8 +187,8 @@ def resolve_light_query(text, snapshot, history=(), *, spoken=False, language='f
     if PERIOD.search(raw) or COMPLEX.search(raw):return plan('unsupported')
     if nonlight:return plan('not_found')
     # Only state questions use these predicates; no write path exists in this module.
-    on=bool(words & {'on','allume','allumee','allumes','allumees','lit','active','actives','actifs','marche'})
-    off=bool(words & {'off','eteint','eteinte','eteints','eteintes'})
+    on=bool(state_words & {'on','allume','allumee','allumes','allumees','lit','active','actives','actifs','marche'})
+    off=bool(state_words & {'off','eteint','eteinte','eteints','eteintes'})
     wanted='on' if on and not off else 'off' if off and not on else None
     if words & {'pas','not','jamais','never'} and not NO_READ.search(raw):return plan('unsupported')
     quantifier=('all' if words & {'all','toutes','tous','toute','tout','eclairage','lighting'} else
@@ -195,6 +198,10 @@ def resolve_light_query(text, snapshot, history=(), *, spoken=False, language='f
     channel=int(channels[0].group(1)) if channels else None
     rest=_without(key,[(s,e) for s,e,_ in mentions]+[(m.start(),m.end()) for m in channels])
     selectors=set(rest.split())-SYNTAX-set(ORDINAL)
+    # Relative-clause syntax, not a globally ignored location/name token.
+    relative_target=(re.search(r'\blight that are\b',key) or
+                     any(re.match(r'\s+that are\b',key[e:]) for _,e,_ in mentions))
+    if relative_target:selectors.discard('that')
     if context and not has_type and not mentions and ordinal is not None:
         labels=[name+(f' ({room})' if room else '') for _,name,room in context.targets[:5]]
         offered=('Quelle lumière souhaitez-vous : ' if context.language=='fr' else 'Which light do you mean: ')+', '.join(labels)+'?'
